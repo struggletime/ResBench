@@ -5,7 +5,6 @@
 [English](README.md) | 简体中文
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE-APACHE)
 
 ## 目录
 
@@ -21,7 +20,6 @@
 - [配置文件](#配置文件)
 - [故障排查](#故障排查)
 - [文档](#文档)
-- [致谢](#致谢)
 - [贡献指南](#贡献指南)
 - [许可证](#许可证)
 
@@ -30,8 +28,6 @@
 ResBench 是一个开源的数据库韧性评测平台，用于评估数据库系统在不利条件下的表现。平台在运行接近生产形态的工作负载的同时注入操作系统层和数据库层故障，实时采集吞吐量与延迟，并基于韧性三角模型给出多维度的韧性评分。
 
 平台面向数据库工程师、平台团队和研究人员，提供可复现、可横向比较的度量结果，用于回答两个核心问题：数据库在压力下如何退化，以及退化后多快能够恢复。ResBench 支持 openGauss、GaussDB、MySQL、PostgreSQL 和 OceanBase。
-
-基准测试引擎派生自 [BenchBase](https://github.com/cmu-db/benchbase)，并针对韧性评测进行了较大幅度的修改和扩展。详情见[致谢](#致谢)。
 
 ## 核心能力
 
@@ -508,22 +504,10 @@ ResBench 基于韧性三角模型计算评分。除特别说明外，分值越�
 
 部分文档目前仅提供中文版本。
 
-## 致谢
-
-ResBench 的基准测试引擎派生自 [BenchBase](https://github.com/cmu-db/benchbase)，后者是卡内基梅隆大学数据库组维护的 [OLTPBenchmark Project](https://github.com/oltpbenchmark/oltpbench) 的分支。`backend/resbenchmark` 以及 `backend/resbenchmark-common` 中的部分代码基于 BenchBase 源码修改而来。
-
-上游代码在本项目中经过了较大幅度的修改：包名由 `com.oltpbenchmark` 改为 `com.resbench`，并新增或重写了故障注入、编排、监控、评分和 Web 控制台等模块。派生源文件中保留了原始的版权声明和 Apache License 2.0 许可头。
-
-BenchBase 与 OLTPBench 均采用 [Apache License, Version 2.0](LICENSE-APACHE) 许可。必需的归属声明见 [NOTICE](NOTICE)。
-
-如果在学术工作中使用 ResBench，建议同时引用 OLTPBench 原始论文：
-
-> D. E. Difallah, A. Pavlo, C. Curino, and P. Cudré-Mauroux, "OLTP-Bench: An Extensible Testbed for Benchmarking Relational Databases," PVLDB, vol. 7, no. 4, pp. 277–288, 2013.
-
 ## 贡献指南
 
 欢迎提交贡献。对于较大的改动，请先通过 Issue 讨论方案，再提交 Pull Request。请遵循现有代码风格，保持改动聚焦，并在适当场景补充测试。
 
 ## 许可证
 
-ResBench 原始代码以 [MIT License](LICENSE) 发布。派生自 BenchBase 的部分仍遵循 [Apache License, Version 2.0](LICENSE-APACHE)，其原始版权与许可声明保留在相应源文件中。详情见 [NOTICE](NOTICE)。
+ResBench 基于 [MIT License](LICENSE) 发布。

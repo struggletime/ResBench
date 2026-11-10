@@ -1,34 +1,36 @@
-# 故障注入命令
+English | [简体中文](readme_cn.md)
 
-| 三级故障模式                     | 故障ID |
+# Fault Injection Commands
+
+| Three-level Fault Mode | Fault ID |
 | -------------------------------- | ------ |
-| 业务并发量超过数据库IO容量上限   | 101    |
-| 业务并发量超过数据库内存容量上限 | 102    |
-| 业务并发量超过数据库CPU容量上限  | 103    |
-| 句柄耗尽                         | 104    |
-| 存储过程爆栈                     | 105    |
-| 函数爆栈                         | 106    |
-| 事务爆栈                         | 107    |
-| 递归调用爆栈                     | 108    |
-| 海量子事务                       | /      |
-| 大量事务回滚                     | 109    |
-| max_prepared_transaction达到上限 | 110    |
-| 对热点行高并发更新               | /      |
-| 事务不提交                       | 111    |
-| 重复执行                         | 112    |
-| 突发大量连接请求                 | 113    |
-| 连接数超过限制报错               | 114    |
-| CN、DN活跃线程数超过线程池上限   | 115    |
-| stream线程数超过线程池上限       | 115    |
-| max_dynamic_memory达到上限       | 116    |
+| Business concurrency exceeds the database I/O capacity limit | 101 |
+| Business concurrency exceeds the database memory capacity limit | 102 |
+| Business concurrency exceeds the database CPU capacity limit | 103 |
+| Handle exhaustion | 104 |
+| Stored procedure stack overflow | 105 |
+| Function stack overflow | 106 |
+| Transaction stack overflow | 107 |
+| Recursive call stack overflow | 108 |
+| Massive number of subtransactions | / |
+| Mass transaction rollback | 109 |
+| max_prepared_transaction limit reached | 110 |
+| High-concurrency updates to hot rows | / |
+| Transactions not committed | 111 |
+| Re-execution | 112 |
+| Burst of massive connection requests | 113 |
+| Error when connection count exceeds the limit | 114 |
+| Active thread count of CN/DN exceeds the thread pool limit | 115 |
+| Stream thread count exceeds the thread pool limit | 115 |
+| max_dynamic_memory limit reached | 116 |
 
 
 
-### 注意事项：
+### Notes:
 
-**当前故障脚本 java版本 >= 21**
+**The current fault scripts require Java version >= 21**
 
-### 业务并发量超过数据库IO容量上限(101)
+### Business Concurrency Exceeds the Database I/O Capacity Limit (101)
 
 ```shell
 java -cp .:opengauss-jdbc-7.0.0-RC2.jar MaxIOTest
@@ -58,7 +60,7 @@ java -cp .:opengauss-jdbc-7.0.0-RC2.jar MaxIOTest
 
 
 
-### 业务并发量超过数据库内存容量上限(102)
+### Business Concurrency Exceeds the Database Memory Capacity Limit (102)
 
 ```shell
 java -cp .:opengauss-jdbc-7.0.0-RC2.jar MaxMemTest
@@ -88,7 +90,7 @@ java -cp .:opengauss-jdbc-7.0.0-RC2.jar MaxMemTest
 
 
 
-### 业务并发量超过数据库CPU容量上限(103)
+### Business Concurrency Exceeds the Database CPU Capacity Limit (103)
 
 ```shell
 java -cp .:opengauss-jdbc-7.0.0-RC2.jar MaxCPUTest
@@ -118,7 +120,7 @@ java -cp .:opengauss-jdbc-7.0.0-RC2.jar MaxCPUTest
 
 
 
-## 存储过程爆栈(105)
+## Stored Procedure Stack Overflow (105)
 
 ```shell
  java -cp .:opengauss-jdbc-7.0.0-RC2.jar StackOverflowTest \
@@ -157,7 +159,7 @@ java -cp .:opengauss-jdbc-7.0.0-RC2.jar MaxCPUTest
 
 
 
-## 函数爆栈(106)
+## Function Stack Overflow (106)
 
 ```shell
  java -cp .:opengauss-jdbc-7.0.0-RC2.jar StackOverflowTest \
@@ -196,7 +198,7 @@ java -cp .:opengauss-jdbc-7.0.0-RC2.jar MaxCPUTest
 
 
 
-## 事务爆栈(107)
+## Transaction Stack Overflow (107)
 
 ```shell
 java -cp .:opengauss-jdbc-7.0.0-RC2.jar StackOverflowTest \
@@ -235,7 +237,7 @@ java -cp .:opengauss-jdbc-7.0.0-RC2.jar StackOverflowTest \
 
 
 
-## 递归调用爆栈(108)
+## Recursive Call Stack Overflow (108)
 
 ```shell
 java -cp .:opengauss-jdbc-7.0.0-RC2.jar StackOverflowTest \
@@ -274,7 +276,7 @@ java -cp .:opengauss-jdbc-7.0.0-RC2.jar StackOverflowTest \
 
 
 
-## 大量事务回滚(109)
+## Mass Transaction Rollback (109)
 
 ```shell
 java -cp .:opengauss-jdbc-7.0.0-RC2.jar MassiveRollbackTest \
@@ -313,15 +315,15 @@ java -cp .:opengauss-jdbc-7.0.0-RC2.jar MassiveRollbackTest \
 
 
 
-## max_prepared_transaction达到上限(110)
+## max_prepared_transaction Limit Reached (110)
 
 ```shell
 java -cp .:opengauss-jdbc-7.0.0-RC2.jar UncommittedTransactionFaultInject -lockHoldingSessions 1 -waitingSessions 50 -lockHoldDuration 60 -lockRowsCount 10 -statementTimeoutSeconds 30
-# lockHoldingSessions：持有锁的事务数
-# waitingSessions：等待事务数
-# lockHoldDuration：持有锁持续时间
-# lockRowsCount：锁住的数据行数
-# statementTimeoutSeconds：超时时间
+# lockHoldingSessions: number of transactions holding locks
+# waitingSessions: number of waiting transactions
+# lockHoldDuration: duration for which locks are held
+# lockRowsCount: number of locked data rows
+# statementTimeoutSeconds: timeout
 ```
 
 ```xml
@@ -358,13 +360,13 @@ java -cp .:opengauss-jdbc-7.0.0-RC2.jar UncommittedTransactionFaultInject -lockH
 
 
 
-## 事务不提交(111)
+## Transactions Not Committed (111)
 
 ```shell
 java -cp .:opengauss-jdbc-7.0.0-RC2.jar MaxPreparedTransactionFaultInject -target-prepared-count 201 -client-concurrency 100   -hold-duration-sec 60
-# target-prepared-count：目标prepare事务总数
-# client-concurrency：客户端并发数
-# hold-duration-sec：prepare事务持续时间
+# target-prepared-count: target total number of prepared transactions
+# client-concurrency: client concurrency
+# hold-duration-sec: duration of prepared transactions
 ```
 
 ```xml
@@ -397,12 +399,12 @@ java -cp .:opengauss-jdbc-7.0.0-RC2.jar MaxPreparedTransactionFaultInject -targe
 
 
 
-## 重复执行(112)
+## Re-execution (112)
 
 ```shell
 java -cp .:opengauss-jdbc-7.0.0-RC2.jar DuplicateTransactionFaultInject -concurrentSessions 50 -lockHoldDuration 30
-# concurrentSessions：并发会话数
-# lockHoldDuration：测试持续时间
+# concurrentSessions: number of concurrent sessions
+# lockHoldDuration: test duration
 ```
 
 ```xml
@@ -435,7 +437,7 @@ java -cp .:opengauss-jdbc-7.0.0-RC2.jar DuplicateTransactionFaultInject -concurr
 
 
 
-## 突发大量连接请求(113)
+## Burst of Massive Connection Requests (113)
 
 ```shell
 java -cp .:opengauss-jdbc-7.0.0-RC2.jar MaxConnectionTest \
@@ -470,7 +472,7 @@ java -cp .:opengauss-jdbc-7.0.0-RC2.jar MaxConnectionTest \
 
 
 
-## 连接数超过限制报错(114)
+## Error When Connection Count Exceeds the Limit (114)
 
 ```shell
 java -cp .:opengauss-jdbc-7.0.0-RC2.jar MaxConnectionTest \
@@ -505,7 +507,7 @@ java -cp .:opengauss-jdbc-7.0.0-RC2.jar MaxConnectionTest \
 
 
 
-## 超过活跃线程池上限(115)
+## Exceeding the Active Thread Pool Limit (115)
 
 ```shell
 java -cp .:opengauss-jdbc-7.0.0-RC2.jar MaxConnectionTest \
@@ -544,7 +546,7 @@ java -cp .:opengauss-jdbc-7.0.0-RC2.jar MaxConnectionTest \
 
 
 
-### 修改fault-cases-generic.xml（新增故障编排）
+### Modifying fault-cases-generic.xml (Adding Fault Orchestration)
 
 ```xml
 <testSuite>
@@ -623,7 +625,7 @@ java -cp .:opengauss-jdbc-7.0.0-RC2.jar MaxConnectionTest \
 
 
 
-## 修改smallbankbbh-worker.xml
+## Modifying smallbankbbh-worker.xml
 
 ```xml
 <works>

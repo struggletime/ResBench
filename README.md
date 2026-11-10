@@ -5,7 +5,6 @@
 English | [简体中文](README_cn.md)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE-APACHE)
 
 ## Contents
 
@@ -21,7 +20,6 @@ English | [简体中文](README_cn.md)
 - [Configuration Reference](#configuration-reference)
 - [Troubleshooting](#troubleshooting)
 - [Documentation](#documentation)
-- [Acknowledgements](#acknowledgements)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -30,8 +28,6 @@ English | [简体中文](README_cn.md)
 ResBench is an open-source platform for evaluating the resilience of database systems under adverse conditions. It executes production-like workloads while injecting operating-system and database-level faults, captures throughput and latency in real time, and derives a multi-dimensional resilience score based on the resilience triangle model.
 
 The platform is designed for database engineers, platform teams, and researchers who need reproducible, comparable measurements of how a database degrades under stress and how quickly it recovers. It supports openGauss, GaussDB, MySQL, PostgreSQL, and OceanBase.
-
-The benchmark engine is derived from [BenchBase](https://github.com/cmu-db/benchbase) and has been substantially modified and extended for resilience evaluation. See [Acknowledgements](#acknowledgements) for details.
 
 ## Key Capabilities
 
@@ -508,22 +504,10 @@ The six weights must total exactly 100, and each weight must be an integer from 
 
 Some documents are currently available in Chinese only.
 
-## Acknowledgements
-
-ResBench is derived from [BenchBase](https://github.com/cmu-db/benchbase), the Carnegie Mellon University Database Group's fork of the [OLTPBenchmark Project](https://github.com/oltpbenchmark/oltpbench). The benchmark engine in `backend/resbenchmark` and portions of `backend/resbenchmark-common` are based on BenchBase source code.
-
-The upstream code has been substantially modified for this project. Packages were renamed from `com.oltpbenchmark` to `com.resbench`, and the fault-injection, orchestration, monitoring, scoring, and web console layers were added or rewritten. The original copyright notices and Apache License 2.0 headers are retained in the derived source files.
-
-BenchBase and OLTPBench are licensed under the [Apache License, Version 2.0](LICENSE-APACHE). See [NOTICE](NOTICE) for the required attribution notice.
-
-If you use ResBench in academic work, please also cite the original OLTPBench paper:
-
-> D. E. Difallah, A. Pavlo, C. Curino, and P. Cudré-Mauroux, "OLTP-Bench: An Extensible Testbed for Benchmarking Relational Databases," PVLDB, vol. 7, no. 4, pp. 277–288, 2013.
-
 ## Contributing
 
 Contributions are welcome. For significant changes, please open an issue to discuss the proposal before submitting a pull request. Follow the existing code style, keep changes focused, and include tests where appropriate.
 
 ## License
 
-Original ResBench code is released under the [MIT License](LICENSE). Portions derived from BenchBase remain licensed under the [Apache License, Version 2.0](LICENSE-APACHE), and their original copyright and license notices are retained in the corresponding source files. See [NOTICE](NOTICE) for details.
+ResBench is released under the [MIT License](LICENSE).

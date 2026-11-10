@@ -1,11 +1,11 @@
-# Monitoring in BenchBase
+# Monitoring in ResBench
 
-Monitoring in BenchBase can be enabled using the
+Monitoring in ResBench can be enabled using the
 ```text
  -im,--interval-monitor <arg>   Monitoring Interval in milliseconds
  -mt,--monitor-type <arg>       Type of Monitoring (throughput/advanced)
 ```
-command line option when executing BenchBase, where the monitoring interval describes the sleeping period of the thread between recording monitoring information.
+command line option when executing ResBench, where the monitoring interval describes the sleeping period of the thread between recording monitoring information.
 We currently support two types of monitoring:
 
 1. Basic throughput monitoring to track the progress while executing a benchmark (`-mt=throughput`), and
