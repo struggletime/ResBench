@@ -1,0 +1,19 @@
+ResBench
+Copyright 2026 HuPY
+
+This product includes software developed by the OLTPBenchmark Project
+(https://github.com/oltpbenchmark/oltpbench), originally released as
+OLTP-Bench, and later developed as BenchBase by the Carnegie Mellon
+University Database Group (https://github.com/cmu-db/benchbase).
+
+The benchmark engine in backend/resbenchmark and portions of
+backend/resbenchmark-common are derived from BenchBase source code.
+These files retain their original copyright notices and are licensed
+under the Apache License, Version 2.0 (see LICENSE-APACHE).
+
+Academic work using this software should also cite the original
+OLTP-Bench paper:
+
+  D. E. Difallah, A. Pavlo, C. Curino, and P. Cudre-Mauroux,
+  "OLTP-Bench: An Extensible Testbed for Benchmarking Relational
+  Databases," PVLDB, vol. 7, no. 4, pp. 277-288, 2013.
