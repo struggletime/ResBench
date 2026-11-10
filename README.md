@@ -29,19 +29,19 @@ English | [简体中文](README_cn.md)
 
 ResBench is an open-source platform for evaluating the resilience of database systems under adverse conditions. It executes production-like workloads while injecting operating-system and database-level faults, captures throughput and latency in real time, and derives a multi-dimensional resilience score based on the resilience triangle model.
 
-The platform is designed for database engineers, platform teams, and researchers who need reproducible, comparable measurements of how a database degrades under stress and how quickly it recovers. It supports single-node and distributed deployments, including openGauss, GaussDB, MySQL, PostgreSQL, and OceanBase.
+The platform is designed for database engineers, platform teams, and researchers who need reproducible, comparable measurements of how a database degrades under stress and how quickly it recovers. It supports openGauss, GaussDB, MySQL, PostgreSQL, and OceanBase.
 
 The benchmark engine is derived from [BenchBase](https://github.com/cmu-db/benchbase) and has been substantially modified and extended for resilience evaluation. See [Acknowledgements](#acknowledgements) for details.
 
 ## Key Capabilities
 
-- **Workload generation.** Built-in support for TPC-C (BenchmarkSQL), SmallBank, and YCSB workloads, configurable by data scale, concurrency, duration, and transaction mix.
+- **Workload generation.** Built-in support for TPC-C (BenchmarkSQL) and SmallBank workloads, configurable by data scale, concurrency, duration, and transaction mix.
 - **Layered fault injection.** Operating-system faults through ChaosBlade and database-level faults through DBChaos and JDBC-based programs.
 - **Flexible orchestration.** Faults can be injected sequentially or as a synchronized group with a shared duration and start delay. An optional validation step checks the plan against a knowledge graph for conflicting or duplicate faults.
 - **Real-time observability.** Live TPS and latency charts, current fault status, and pause/resume controls during a run.
 - **Reproducible scoring.** A ten-dimensional score derived from the resilience triangle, including throughput, latency, stability, resistance, recovery, adaptability, volatility, RTO compliance, metric deviation, and perturbation duration.
 - **Historical analysis.** Persistent test records, generated reports with PDF export, and side-by-side comparison across databases, workloads, and fault configurations.
-- **Distributed execution.** A manager, a benchmark engine, and lightweight agents that run next to the database under test.
+- **Agent-based execution.** A manager, a benchmark engine, and lightweight agents that run next to the database under test.
 
 ## Architecture
 
@@ -109,15 +109,23 @@ chmod +x start-dev.sh
 bash start-dev.sh
 ```
 
-The launcher starts three services:
+On Windows, the launcher starts three services:
 
 - Benchmark Engine on port 8080
 - Manager on port 8090
 - Frontend development server on port 5173
 
+On Linux and macOS, the launcher starts only the benchmark engine (8080) and the manager (8090). Start the frontend separately:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
 Once all services are ready, open <http://localhost:5173>.
 
-> In development, the frontend runs on the Vite development server (5173) and proxies API requests to the manager on port 8090. The launcher first compiles the backend with Maven, starts the engine (approximately 2 GB of heap), then starts the manager, and finally starts the frontend. All three services must remain running; without the engine, the history and comparison pages cannot load.
+> In development, the frontend runs on the Vite development server (5173) and proxies API requests to the manager on port 8090. The launcher first compiles the backend with Maven, starts the engine (approximately 2 GB of heap), and then starts the manager. All services must remain running; without the engine, the history and comparison pages cannot load.
 
 To stop the development environment, close the terminals or press `Ctrl+C` on Linux and macOS.
 
@@ -274,18 +282,17 @@ A typical workflow is: configure the database, configure the workload, configure
 
 | Field | Description |
 | --- | --- |
-| Deployment type | Single-node or distributed; determines the available database types |
-| Database type | Single-node: openGauss, GaussDB, MySQL, PostgreSQL. Distributed: OceanBase |
+| Database type | openGauss, GaussDB, MySQL, PostgreSQL, OceanBase |
 | Host and port | Connection address of the database under test |
 | Username and password | Database credentials |
 
-1. Select the deployment type. The console loads the supported database types.
+1. Select the database type. The console loads the corresponding connection fields.
 2. Enter the connection details and select **Test Connection**. Once the status reports a successful connection, select **Save**.
 3. Saving the configuration unlocks workload configuration.
 
 ### Workload Configuration
 
-Three workload types are available from the page selector.
+Two workload types are available from the page selector.
 
 **BenchmarkSQL (TPC-C)**
 
@@ -306,16 +313,6 @@ Three workload types are available from the page selector.
 | Transaction weights | Execution ratio of the six transaction types; must total 100 |
 
 The six transaction types and their default weights (5, 25, 20, 15, 15, 20) are Amalgamate, Balance, DepositChecking, SendPayment, TransactSavings, and WriteCheck.
-
-**YCSB**
-
-| Parameter | Description |
-| --- | --- |
-| Workload template | Built-in YCSB workload |
-| Record count, operation count, threads | Data scale and concurrency |
-| Duration | At least one of duration or operation count must be provided |
-| Request distribution | `uniform`, `zipfian`, `latest`, and others |
-| Read, write, insert, scan, update ratios | The five ratios must total 1.0 |
 
 > A modified workload must be saved before a test can start.
 
