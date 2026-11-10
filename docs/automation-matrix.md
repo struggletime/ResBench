@@ -1,72 +1,70 @@
-# 自动化测试矩阵（fixed-time / 多编排 / 组合故障）
+# Automated Test Matrix (fixed-time / multi-orchestration / composite faults)
 
-脚本：`scripts/resbench_matrix.py`，示例配置：`scripts/matrix-example.yaml`
+Script: `scripts/resbench_matrix.py`, example configuration: `scripts/matrix-example.yaml`
 
-## 1. 它解决什么
+## 1. What It Solves
 
-- **测试矩阵**：`databases × workloads × orchestrations × repeat`，一次配置、串行跑完；
-- **组合故障**：同一 `stage` 内多个故障**同时**触发（映射到引擎 `groupKey` 相同）；
-  多个 `stage` = **串行级联**（引擎自动在组间留 30s）；
-- **固定时间模式**：只发 `autoTimingMode=fixed-time`，触发时刻可精确预估；
-- **自动进入归档**：每轮传 `testName / dbKey / orchestrationId / labels / source=script`，
-  跑完用 `/web/bench/history/query` 把指标与产物完整性写进 `index.csv`，
-  前端历史页可以直接检索到这批矩阵结果；
-- **断点续跑**：`--resume <批次目录>` 跳过已成功的轮次；
-- **默认 dry-run**：不加 `--execute` 不会提交任何任务。
+- **Test matrix**: `databases × workloads × orchestrations × repeat`; one configuration, run serially to completion;
+- **Composite faults**: multiple faults within the same `stage` fire **simultaneously** (mapped to the same engine `groupKey`);
+  multiple `stage`s = **serial cascade** (the engine automatically leaves 30s between groups);
+- **Fixed-time mode**: only `autoTimingMode=fixed-time` is sent, so trigger times can be precisely estimated;
+- **Automatic archiving**: each round passes `testName / dbKey / orchestrationId / labels / source=script`,
+  and after the run `/web/bench/history/query` writes metrics and artifact completeness into `index.csv`,
+  so this batch of matrix results can be searched directly on the frontend history page;
+- **Resume from checkpoint**: `--resume <batch directory>` skips rounds that already succeeded;
+- **Dry-run by default**: no jobs are submitted unless `--execute` is given.
 
-## 2. 运行名规则
+## 2. Run Name Rules
 
-脚本传 `testName = <dbKey>_<workloadKey>_<编排id>_r<n>`，引擎按其规则拼成
-
-```
-<workload>_<dbKey>_<workloadKey>_<编排id>_r<n>_<yyyyMMdd_HHmmss>
-例：smallbank_oglocal_std_combo-cpu-net_r1_20260921_120000
-```
-
-前缀一定是负载名，满足 `/bench/result`、`/bench/event`、`history/list` 的
-`historyName.startsWith(testSuiteName)` 过滤要求。
-
-## 3. 故障排程（与引擎完全一致）
-
-引擎 `StartByFormService.buildScheduledFaults` 的规则，脚本 1:1 复刻用于预估与校验：
+The script passes `testName = <dbKey>_<workloadKey>_<orchestrationId>_r<n>`, and the engine assembles it according to its rules into
 
 ```
-组基准 = 60s（第一组）
-组内某故障触发时刻 = 组基准 + delaySeconds
-组结束 = max(触发时刻 + duration)
-下一组基准 = 组结束 + 30s
+<workload>_<dbKey>_<workloadKey>_<orchestrationId>_r<n>_<yyyyMMdd_HHmmss>
+Example: smallbank_oglocal_std_combo-cpu-net_r1_20260921_120000
 ```
 
-`duration` 取 `fault.params.duration`（秒），缺省用故障目录里的 `defaultDuration`；
-脚本会显式把 `duration` 补进请求参数，保证"预估"与"实跑"一致。
+The prefix is always the workload name, satisfying the `historyName.startsWith(testSuiteName)` filter requirement of `/bench/result`, `/bench/event`, and `history/list`.
 
-> 已验证：对真实运行 `results/smallbank_20260827_013845`（5 组故障，引擎记录
-> `faultDelay = 60/120/180/240/300`、`faultDuration = 30/30/30/30/60`），
-> 脚本预测的起始时刻与引擎实际记录**逐个一致**，计划终点同为 360s。
+## 3. Fault Scheduling (Fully Consistent with the Engine)
 
-单轮预计耗时 = `max(workload.params.duration, 计划终点) + 装载开销 + 恢复尾巴`，
-`装载开销` 可用 `engine.estimatedOverheadSec` 或 `workloads.<key>.estimatedOverheadSec` 覆盖（TPCC 建议调大）。
+The rules of the engine's `StartByFormService.buildScheduledFaults`, replicated 1:1 by the script for estimation and validation:
 
-## 4. 配置结构
+```
+Group baseline = 60s (first group)
+Trigger time of a fault within a group = group baseline + delaySeconds
+Group end = max(trigger time + duration)
+Next group baseline = group end + 30s
+```
+
+`duration` is taken from `fault.params.duration` (seconds); if absent, the `defaultDuration` in the fault catalog is used. The script explicitly adds `duration` to the request parameters to ensure that the "estimate" matches the "actual run".
+
+> Verified: against a real run `results/smallbank_20260827_013845` (5 fault groups, engine records
+> `faultDelay = 60/120/180/240/300`, `faultDuration = 30/30/30/30/60`),
+> the start times predicted by the script match the engine's actual records **one by one**, and the planned end point is likewise 360s.
+
+Estimated duration of a single round = `max(workload.params.duration, planned end point) + load overhead + recovery tail`;
+`load overhead` can be overridden with `engine.estimatedOverheadSec` or `workloads.<key>.estimatedOverheadSec` (increasing it is recommended for TPCC).
+
+## 4. Configuration Structure
 
 ```yaml
 engine:
-  baseUrl: http://127.0.0.1:8080   # 唯一需要知道的：引擎在哪（也可用 --engine 顶掉）
-  # 其余键都有默认值，需要时再写（括号里是默认值）：
-  #   env (openGauss)            环境名 → 请求里的 envInfo；引擎不看它，manager 用它选引擎
-  #   monitorIntervalSec (1)     监控采样间隔 → 真正下发给引擎（-im）
-  #   pollIntervalSec (5)        脚本多久查一次 /web/bench/status
-  #   startTimeoutSec (180)      等任务真正跑起来的超时
-  #   endMarginSec (300)         等结束的余量（恢复/核验尾巴）
-  #   settleSec (20)             结束后等归档落盘再检索
-  #   cooldownSec (30)           轮间冷却
-  #   tailSec (60)               预估用：恢复/核验尾巴
-  #   minSlackSec (30)           负载时长至少比故障计划多这么多
-  #   estimatedOverheadSec (120) 建表/装载预估开销
+  baseUrl: http://127.0.0.1:8080   # The only thing you need to know: where the engine is (can also be overridden with --engine)
+  # All other keys have defaults; write them only when needed (defaults in parentheses):
+  #   env (openGauss)            Environment name → envInfo in the request; the engine does not read it, the manager uses it to select the engine
+  #   monitorIntervalSec (1)     Monitoring sampling interval → actually sent to the engine (-im)
+  #   pollIntervalSec (5)        How often the script polls /web/bench/status
+  #   startTimeoutSec (180)      Timeout for waiting until the job actually starts running
+  #   endMarginSec (300)         Margin for waiting for the end (recovery/verification tail)
+  #   settleSec (20)             Wait after the end for the archive to land on disk before querying
+  #   cooldownSec (30)           Cooldown between rounds
+  #   tailSec (60)               For estimation: recovery/verification tail
+  #   minSlackSec (30)           Workload duration must exceed the fault schedule by at least this much
+  #   estimatedOverheadSec (120) Estimated table-creation/load overhead
 
-archive:                # 归档元信息
+archive:                # Archive metadata
   labels: [matrix, nightly]
-  note: "自动化矩阵"
+  note: "Automated matrix"
 
 databases:
   <dbKey>:
@@ -74,325 +72,310 @@ databases:
     deploymentType: standalone | distributed
     standalone: {ip, port, username, password}
     distributed: {...}          # oceanbase/gaussdb
-    params:                     # 数据库配置参数（非连接信息）→ 进归档、可检索对比
+    params:                     # Database configuration parameters (not connection info) → archived, searchable and comparable
       shared_buffers: 2GB
       max_connections: "500"
-    container: opengauss-db     # 可选：见 §9 容器内注入
+    container: opengauss-db     # Optional: see §9 In-Container Injection
 
 workloads:
   <workloadKey>:
     name: smallbank | tpcc
     params: {duration: "600", rate: "200", ...}
-    runOptions: {reload: true}   # tpcc 每组第一轮脚本会自动开 reload
+    runOptions: {reload: true}   # For tpcc, the script automatically enables reload on the first round of each group
     estimatedOverheadSec: 600
 
 orchestrations:
-  # nameKey 必须来自引擎真实目录：python3 scripts/resbench_matrix.py --list-faults
+  # nameKey must come from the engine's real catalog: python3 scripts/resbench_matrix.py --list-faults
   - id: combo-conn-planflip
-    note: "连接风暴 + 执行计划翻转 同时发生"
+    note: "Connection storm + execution plan flip occurring simultaneously"
     stages:
-      - key: s1                  # 同 key 的故障同时触发
+      - key: s1                  # Faults with the same key trigger simultaneously
         faults:
           - {nameKey: faultinject.fault.connection.surge, delay: 0,
              params: {concurrent-connections: "200", duration: "60"}}
           - {nameKey: faultinject.fault.sql.plan_flip, delay: 0,
              params: {threads: "16", duration: "60"}}
-      - key: s2                  # 下一阶段串行（引擎自动间隔 30s）
+      - key: s2                  # Next stage runs serially (the engine automatically leaves a 30s interval)
         faults:
           - {nameKey: faultinject.fault.transaction.massive.rollback, delay: 30,
              params: {threads: "16", duration: "60"}}
 
 matrix:
   repeat: 1
-  exclude: ["mysqllocal@w32"]    # 也可写整个 label
+  exclude: ["mysqllocal@w32"]    # A whole label can also be written
 ```
 
-> **`engine` 段为什么只有 `baseUrl`？** 因为其余键都不是"引擎的配置项"，而是脚本作为
-> **外部驱动器**的节奏参数（轮询/等待/冷却/预估）——引擎 API 里没有这些概念，前端自然也没有
-> 对应输入框。前端的角色是"提交一次测试"，提交完就结束（引擎异步跑），它不等在引擎外面。
-> 反过来：脚本必须知道引擎在哪，而前端不需要（同源）。
-> 另外 `env` 的消费方是 **manager**（`benchMarkAddr.getBenchMarkAddr(envInfo)` 用它选哪台引擎），
-> 引擎本身完全不看 `envInfo`；`monitorIntervalSec` 才是真的下发给引擎的（`-im`）。
+> **Why does the `engine` section contain only `baseUrl`?** Because the remaining keys are not "engine configuration items" but pacing parameters of the script acting as an **external driver** (polling/waiting/cooldown/estimation) -- the engine API has no such concepts, so naturally the frontend has no corresponding input fields either. The frontend's role is to "submit a test once"; once submitted, it is done (the engine runs asynchronously), and it does not sit outside the engine waiting. Conversely: the script must know where the engine is, while the frontend does not need to (same origin).
+> In addition, `env` is consumed by the **manager** (`benchMarkAddr.getBenchMarkAddr(envInfo)` uses it to choose which engine), and the engine itself does not look at `envInfo` at all; `monitorIntervalSec` is the one actually sent to the engine (`-im`).
 
-## 5. 命令行
+## 5. Command Line
 
 ```bash
-# 先看引擎里真实有哪些故障（nameKey/名称/默认时长/必填参数）——写编排前必做
+# First inspect which faults actually exist in the engine (nameKey/name/default duration/required parameters) -- mandatory before writing an orchestration
 python3 scripts/resbench_matrix.py --list-faults
 
-# 预览矩阵、逐轮预计耗时与总时长（默认 dry-run，不提交任务）
+# Preview the matrix, the estimated duration of each round, and the total duration (dry-run by default, no jobs submitted)
 python3 scripts/resbench_matrix.py --config scripts/matrix-example.yaml
 
-# 只做环境预检：逐档数据库连通性（引擎 /web/bench/connection/test）+ 归档检索接口是否可用
+# Environment preflight only: database connectivity for each entry (engine /web/bench/connection/test) + whether the archive query API is available
 python3 scripts/resbench_matrix.py -c scripts/matrix-example.yaml --preflight-only
 
-# 离线预览（不连引擎校验故障目录）
+# Offline preview (do not connect to the engine to validate the fault catalog)
 python3 scripts/resbench_matrix.py -c scripts/matrix-example.yaml --skip-catalog-check
 
-# 真正执行
+# Actual execution
 python3 scripts/resbench_matrix.py -c scripts/matrix-example.yaml --execute
 
-# 文件类故障的路径交给后端推荐（@auto: 哨兵），见第 10 节；不加就按 YAML 里写的参数跑
+# For file-type faults, let the backend recommend the paths (@auto: sentinels), see Section 10; without this flag, run with the parameters written in the YAML
 python3 scripts/resbench_matrix.py -c scripts/matrix-example.yaml --execute --auto-file-targets
 
-# 只跑部分编排 / 覆盖重复次数 / 指定输出目录
+# Run only some orchestrations / override the repeat count / specify the output directory
 python3 scripts/resbench_matrix.py -c cfg.yaml --execute --only combo-cpu-net,single-disk --repeat 3
 python3 scripts/resbench_matrix.py -c cfg.yaml --execute --out runs/batch-20260921
 
-# 断点续跑（跳过已成功的轮次）
+# Resume from checkpoint (skip rounds that already succeeded)
 python3 scripts/resbench_matrix.py -c cfg.yaml --execute --resume runs/batch-20260921
 
-# --execute 默认会先跑预检，有库连不上就中止（避免长矩阵跑一半才发现）
-#   --skip-preflight  跳过预检
-#   --force           预检失败也继续
+# By default, --execute runs the preflight first and aborts if any database is unreachable (to avoid discovering it halfway through a long matrix)
+#   --skip-preflight  Skip the preflight
+#   --force           Continue even if the preflight fails
 ```
 
-预检输出示例：
+Preflight output example:
 
 ```
-预检中（数据库连接 + 归档接口）...
-  PASS  oglocal（opengauss）连接成功：连接成功
-  FAIL  mysqllocal（mysql）：无法连接到数据库服务器，请检查 IP、端口是否正确……
-  PASS  归档检索接口可用：index.csv 会带上指标与产物完整性
+Running preflight (database connections + archive API)...
+  PASS  oglocal (opengauss) connected: connection successful
+  FAIL  mysqllocal (mysql): unable to connect to the database server; check whether the IP and port are correct...
+  PASS  Archive query API available: index.csv will include metrics and artifact completeness
 ```
 
-旧构建（没有新接口）不会被判失败，只给 `SKIP`/`WARN`，矩阵照常可跑。
+Old builds (without the new API) are not marked as failures; they only produce `SKIP`/`WARN`, and the matrix can still run as usual.
 
-## 6. 产物与检索
+## 6. Artifacts and Querying
 
 ```
-runs/<批次>/
-  matrix.json            # 本次矩阵展开与配置路径
-  index.csv              # 每轮一行：label/historyName/计划与实跑时长/成功与关键指标/完整性
+runs/<batch>/
+  matrix.json            # Expansion of this matrix and the configuration path
+  index.csv              # One row per round: label/historyName/planned and actual duration/success and key metrics/completeness
   cells/<label>/
-    request.json         # 实际提交的请求（连接信息已脱敏）
-    schedule.json        # 故障排程（绝对触发时刻）
-    result.json          # 跑完从 history/query 取回的归档行（指标+产物完整性）
+    request.json         # The request actually submitted (connection info redacted)
+    schedule.json        # Fault schedule (absolute trigger times)
+    result.json          # Archive row retrieved from history/query after the run (metrics + artifact completeness)
 ```
 
-`index.csv` 可直接做透视表（db × workload × 编排），也可以直接在前端历史页用
-标签（`archive.labels`）、编排 id、`dbKey`、来源 `script` 检索到同一批运行。
+`index.csv` can be used directly for pivot tables (db × workload × orchestration), and the same batch of runs can also be searched directly on the frontend history page by labels (`archive.labels`), orchestration id, `dbKey`, and source `script`.
 
-## 7. 已知约束（脚本已校验或规避）
+## 7. Known Constraints (Validated or Avoided by the Script)
 
-- 引擎同一时刻只跑一轮 → 脚本串行执行，轮间 `cooldownSec` 冷却；
-- `smallbank`/`tpcc` 之外的负载名会被引擎拒绝；`oceanbase + tpcc` 组合非法；
-- 分布式部署只支持 `oceanbase`/`gaussdb`；
-- TPCC 必须 `reload=true` 建表加载，脚本对每个 `(dbKey, workloadKey)` 组的第一轮自动开启；
-- `workload.params.duration` 必须 ≥ 故障计划终点（不足会被截断），脚本在 dry-run 阶段就会提示；
-- **`nameKey` 必须与引擎目录逐字一致**（自己编的名字会被 dry-run 拦下），必填参数不写也会被拦；
-- 部分故障与负载的表名耦合（如 `txn.deadlock_storm` 的 `table` 默认是 TPCC 的 `bmsql_stock`、
-  `txn.uncommitted_txn` 的 `table` 为必填），跑 smallbank 时要么改 `table`，要么用 `matrix.exclude` 排除。
+- The engine runs only one round at a time → the script executes serially, with `cooldownSec` cooldown between rounds;
+- Workload names other than `smallbank`/`tpcc` are rejected by the engine; the `oceanbase + tpcc` combination is invalid;
+- Distributed deployment supports only `oceanbase`/`gaussdb`;
+- TPCC requires `reload=true` for table creation and loading; the script automatically enables it on the first round of each `(dbKey, workloadKey)` group;
+- `workload.params.duration` must be ≥ the planned fault end point (otherwise it is truncated); the script warns about this during the dry-run phase;
+- **`nameKey` must match the engine catalog verbatim** (self-invented names are caught by the dry-run), and omitting required parameters is also caught;
+- Some faults are coupled to workload table names (e.g. the `table` of `txn.deadlock_storm` defaults to TPCC's `bmsql_stock`, and the `table` of `txn.uncommitted_txn` is required); when running smallbank, either change `table` or exclude it with `matrix.exclude`.
 
-## 8. 数据库参数真的应用到库上
+## 8. Database Parameters Are Actually Applied to the Database
 
-`databases[].params` 以前只被引擎读进 `run-meta.json` 归档，跑出来的结果跟写的参数无关。
-现在语义是：
+`databases[].params` used to be read by the engine only into the `run-meta.json` archive, so the resulting run had nothing to do with the written parameters.
+The semantics are now:
 
-| 情况 | 行为 |
+| Case | Behavior |
 |---|---|
-| `params` 里指定了 `shared_buffers` / `max_connections` | 按指定值应用；og/pg 需要重启，**引擎负责重启并等它连上** |
-| `params` 没指定（或空） | **什么都不做**，直接用数据库现有配置 |
-| 跑完之后 | **不还原**，保持改后的状态 |
+| `shared_buffers` / `max_connections` specified in `params` | Applied with the specified values; og/pg require a restart, and **the engine is responsible for restarting and waiting until it reconnects** |
+| Not specified in `params` (or empty) | **Do nothing**; use the database's existing configuration directly |
+| After the run | **Not restored**; the modified state is kept |
 
-MySQL 认 `innodb_buffer_pool_size` / `max_connections`，用 `SET GLOBAL` **在线生效，不重启**。
-其他 `params` 键（如 `work_mem`）会被忽略并提示。
+MySQL recognizes `innodb_buffer_pool_size` / `max_connections`, applied online with `SET GLOBAL` **without a restart**.
+Other `params` keys (such as `work_mem`) are ignored with a notice.
 
-### 调引擎接口，不再自己连库
+### Calling the Engine API Instead of Connecting to the Database Yourself
 
-脚本把参数交给引擎的 `POST /web/bench/db/params`（前端「数据库配置 → 应用配置」按钮走的是同一份实现），
-读现状 / 生成 SQL / 重启 / 轮询重连 / 读回核对全部由引擎完成：
+The script hands the parameters to the engine's `POST /web/bench/db/params` (the frontend "Database Configuration → Apply Configuration" button goes through the same implementation); reading the current state / generating SQL / restarting / polling for reconnection / reading back for verification are all performed by the engine:
 
 ```
-脚本 → POST <引擎>/web/bench/db/params
+Script → POST <engine>/web/bench/db/params
   { dbType, deploymentType, standalone{ip,port,username,password},
-    params{bufferPool, maxConnections},          ← 语义键；脚本负责从真实参数名翻译过来
+    params{bufferPool, maxConnections},          ← semantic keys; the script translates them from the real parameter names
     restart{command, waitSec}, agentPort }
    ← {success, message, actualNames, targets, before, after, statements,
       alreadyEffective, requiresRestart, applied, restarted, waitedSec, mismatches}
 ```
 
-引擎内部的执行顺序（每档库只做一次）：
+The engine's internal execution order (executed only once per database entry):
 
 ```
-读现状（pg_settings / SHOW VARIABLES）
-  └ 目标值已生效 → 跳过，不白重启一次
-应用（ALTER SYSTEM SET / SET GLOBAL）
-重启（仅 og/pg；把 restartCmd 经 agent /command/exec 下发到数据库主机）
-  → 之后每 2 秒 JDBC 试连一次，最多 waitSec（默认 180，服务端钳在 [10,600]）
-读回核对
-  └ 核对不一致 → success=false + mismatches（没有回滚，所以"没生效"绝不能算成功）
+Read current state (pg_settings / SHOW VARIABLES)
+  └ Target value already effective → skip, no unnecessary restart
+Apply (ALTER SYSTEM SET / SET GLOBAL)
+Restart (og/pg only; deliver restartCmd to the database host via agent /command/exec)
+  → afterwards retry the JDBC connection every 2 seconds, up to waitSec (default 180, server-side clamped to [10,600])
+Read back for verification
+  └ Verification mismatch → success=false + mismatches (there is no rollback, so "not effective" must never count as success)
 ```
 
-**为什么不再让脚本自己连库执行 SQL**：那套逻辑引擎里已经有一份，两套实现会各自演化 ——
-键名契约、取整容差（MySQL 会把 `100M` 取整成 `128M`）、报错文案都会分叉。
-现在脚本只负责参数名翻译与结果映射，失败文案直接用引擎给的，跟界面上看到的一致。
+**Why no longer let the script connect to the database and execute SQL itself**: that logic already exists in the engine, and two implementations would evolve separately -- the key-name contract, rounding tolerance (MySQL rounds `100M` to `128M`), and error messages would all diverge.
+Now the script is responsible only for parameter-name translation and result mapping; failure messages are taken directly from the engine, consistent with what is seen in the UI.
 
-> 需要引擎是**带该接口的构建**：旧构建会在预检阶段直接判 FAIL（"引擎没有参数应用接口（旧构建）"），
-> 不会等到长矩阵跑到一半才发现。
+> Requires an engine **build that includes this API**: an old build is marked FAIL directly during the preflight ("the engine has no parameter-application API (old build)"), rather than being discovered halfway through a long matrix.
 
-### 配置
+### Configuration
 
 ```yaml
 databases:
   oglocal:
     params: {shared_buffers: 2GB, max_connections: "500"}
-    agentPort: 8000          # 引擎把重启命令下发到 库IP:agentPort（默认 8000）
-    # 需要重启时执行的命令，务必 detach。引擎不猜部署方式（systemd/docker/gs_ctl），必须显式给。
-    # agent 的用户身份 = 启动 agent 的用户；openGauss 不能用 root 起，通常要 su 到数据库的 OS 用户；
-    # 单机模式还要带上你自己安装的 -Z 参数（例如 -Z single_node）。
+    agentPort: 8000          # The engine delivers the restart command to dbIP:agentPort (default 8000)
+    # Command to execute when a restart is needed; make sure it is detached. The engine does not guess the deployment method (systemd/docker/gs_ctl); it must be given explicitly.
+    # The agent's user identity = the user that started the agent; openGauss cannot be started as root, so you usually need to su to the database's OS user;
+    # in single-node mode, also include the -Z parameter you installed yourself (e.g. -Z single_node).
     restartCmd: 'nohup su - YOUR_USER -c "gs_ctl restart -D /home/YOUR_USER/gaussdb-data/data -Z single_node" >/tmp/rb_restart.log 2>&1 &'
     waitSec: 180
   mysqllocal:
     params: {innodb_buffer_pool_size: 2G, max_connections: "500"}
-    # MySQL 在线生效 → 不用配 restartCmd
+    # MySQL applies online → no restartCmd needed
 ```
 
-`sqlRunner` 已废弃（脚本不再自己连库执行 SQL）。配置里留着不会报错，预检会提示可以删掉。
+`sqlRunner` is deprecated (the script no longer connects to the database to execute SQL itself). Leaving it in the configuration does not cause an error; the preflight will note that it can be removed.
 
-单独验证（不跑矩阵）：
+Standalone verification (without running the matrix):
 
 ```bash
 python3 scripts/resbench_matrix.py -c cfg.yaml --apply-db-params oglocal
 python3 scripts/resbench_matrix.py -c cfg.yaml --apply-db-params all
 ```
 
-`--preflight-only` / `--execute` 的预检会：探一下引擎有没有参数应用接口（用空 `params` 探，**不会碰数据库**）、
-逐档打印"将要应用什么、要不要重启"。**缺 `restartCmd` 会在预检阶段直接判失败**，不会等到长矩阵跑到一半才发现。
+The preflight of `--preflight-only` / `--execute` will: probe whether the engine has the parameter-application API (probed with empty `params`, **without touching the database**), and print for each entry what will be applied and whether a restart is needed. **A missing `restartCmd` is marked as a failure directly during the preflight**, rather than being discovered halfway through a long matrix.
 
-### 三个坑
+### Three Pitfalls
 
-| 坑 | 依据 | 后果 | 对策 |
+| Pitfall | Basis | Consequence | Remedy |
 |---|---|---|---|
-| agent 等待单条命令的上限是 **30 秒** | `agent/faults/command.py` 里 `asyncio.wait_for(..., timeout=30)` | 不 detach 的重启命令会被 agent kill 掉等待并回 `returncode=-1` | `restartCmd` 一律 `nohup ... >log 2>&1 &`；成功判据是引擎"能不能重连上"，不是命令返回 0 |
-| **agent 以什么用户运行**决定 `su` 能不能用 | `/command/exec` 用 `create_subprocess_shell`，身份 = 启动 agent 的用户 | 非 root 时 `su - omm` 会从 stdin 读密码 → 认证失败（会明确报错，不会静默） | agent 以 root 跑（可以 `su` 到任何用户），或 `sudo -u <user> ...` 配 NOPASSWD |
-| 改 bufferpool 是**全局副作用** | 且按约定不还原 | 跑完这台库一直保持改后的配置，其他使用者受影响 | 测试期间确认这台库没有别的业务 |
+| The agent's upper limit for waiting on a single command is **30 seconds** | `asyncio.wait_for(..., timeout=30)` in `agent/faults/command.py` | A restart command that is not detached is killed by the agent while waiting and returns `returncode=-1` | Always use `nohup ... >log 2>&1 &` for `restartCmd`; the success criterion is whether the engine "can reconnect", not whether the command returns 0 |
+| **Which user the agent runs as** determines whether `su` works | `/command/exec` uses `create_subprocess_shell`, identity = the user that started the agent | When not root, `su - omm` reads the password from stdin → authentication failure (reported explicitly, not silently) | Run the agent as root (can `su` to any user), or configure NOPASSWD for `sudo -u <user> ...` |
+| Changing the bufferpool is a **global side effect** | And by convention it is not restored | This database keeps the modified configuration after the run, affecting other users | Confirm during testing that this database has no other workloads |
 
-### 产物
+### Artifacts
 
-- 每批 `runs/<批次>/db-params.json`：逐库记录 `action` / `targets` / `before` / `after` / `statements` /
-  `restarted` / `waitedSec` / `mismatches` / `reason`（引擎给的中文说明，失败时直接看它）；
-- `index.csv` 增加 `dbParams` 列（如 `shared_buffers=2GB+max_connections=500+restart`），
-  方便区分"真的跑在 2GB 上"和"只登记了 2GB"；
-- 归档里的 `database.params` 现在记的是**引擎读回的实际生效值**（真实参数名）：MySQL 把 `100M`
-  取整成 `128M` 时记的就是 `128MB`。引擎没能报告（旧构建 / 请求就失败了）时退回配置里写的请求值。
-- 参数值仍会进引擎的 `run-meta.json` 归档，历史页可按配置检索/对比。
-## 9. 容器内注入（数据库跑在 Docker 里）
+- Per batch, `runs/<batch>/db-params.json`: records per database `action` / `targets` / `before` / `after` / `statements` /
+  `restarted` / `waitedSec` / `mismatches` / `reason` (the Chinese description provided by the engine; refer to it directly on failure);
+- `index.csv` gains a `dbParams` column (e.g. `shared_buffers=2GB+max_connections=500+restart`),
+  making it easy to distinguish "actually running on 2GB" from "only registered as 2GB";
+- `database.params` in the archive now records **the actual effective values read back by the engine** (real parameter names): when MySQL rounds `100M`
+  to `128M`, the value recorded is `128MB`. When the engine cannot report it (old build / the request itself failed), it falls back to the requested values written in the configuration.
+- Parameter values still go into the engine's `run-meta.json` archive, and the history page can search and compare by configuration.
+## 9. In-Container Injection (Database Running in Docker)
 
-数据库跑在容器里时，宿主机视角的 CPU / 内存 / 磁盘 / 进程类故障打不到容器内部。
-在库配置下加一个 `container`，引擎就会把这些 chaosblade 故障套一层 `docker exec` 在容器内执行。
-（**前端「数据库配置」里有同一个输入框「容器名」**，填了走同一条路；脚本这边是 `container` / `containerName`。）
+When the database runs in a container, CPU / memory / disk / process faults from the host's perspective cannot reach inside the container.
+Adding a `container` under the database configuration makes the engine wrap these chaosblade faults in a layer of `docker exec` executed inside the container.
+(**The frontend "Database Configuration" has the same input field "Container Name"**; filling it in follows the same path; on the script side it is `container` / `containerName`.)
 
 ```yaml
 databases:
   oglocal:
     dbType: opengauss
-    standalone: {ip: 127.0.0.1, port: "5434", username: test1230, password: "<口令>"}
-    container: opengauss-db     # ← 就这一行
+    standalone: {ip: 127.0.0.1, port: "5434", username: test1230, password: "<password>"}
+    container: opengauss-db     # ← Just this one line
 ```
 
-| 故障类型 | 加了 `container` 之后 |
+| Fault type | After adding `container` |
 |---|---|
-| chaosblade 类（`cpu.*` / `memory.*` / `disk.*` / `file.*` / `process.*`） | `docker exec <container> /opt/chaosblade/blade create ...`，在容器内生效 |
-| 网络类（`faultinject.fault.network.*`） | **例外**：仍打到宿主机（容器网卡名与宿主机不同、网络命名空间隔离），引擎会打 WARN 日志说明忽略了这个容器名 |
-| DBChaos 类（`connection.*` / `sql.*` / `txn.*` …，命令是 `java -jar DBChaos.jar`） | 不变：它通过 JDBC 连库，不需要在容器内跑 |
+| chaosblade types (`cpu.*` / `memory.*` / `disk.*` / `file.*` / `process.*`) | `docker exec <container> /opt/chaosblade/blade create ...`, effective inside the container |
+| Network types (`faultinject.fault.network.*`) | **Exception**: still applied to the host (container NIC names differ from the host's, and network namespaces are isolated); the engine logs a WARN explaining that this container name was ignored |
+| DBChaos types (`connection.*` / `sql.*` / `txn.*` …, command is `java -jar DBChaos.jar`) | Unchanged: it connects to the database via JDBC and does not need to run inside the container |
 
-前置条件（都不满足时故障会注入失败或打到宿主机，脚本不做检测）：
+Prerequisites (if any is unmet, fault injection fails or hits the host; the script performs no checks):
 
-1. **容器内已装 chaosblade**，`/opt/chaosblade/blade` 在容器里可执行（宿主机装了不算）；
-2. **agent 的 OS 用户在 `docker` 组**，否则 `docker exec` 权限不足；
-3. **容器名在 agent 主机上能解析**（agent 与容器同机，脚本下发的 agent 地址就是 `库IP:8000`）。
+1. **chaosblade is installed inside the container**, and `/opt/chaosblade/blade` is executable in the container (installing it on the host does not count);
+2. **The agent's OS user is in the `docker` group**, otherwise `docker exec` lacks permission;
+3. **The container name is resolvable on the agent host** (the agent and the container are on the same machine; the agent address sent by the script is `dbIP:8000`).
 
-预检会在配了 `container` 的库那一行下面打印
-`---- <dbKey>：chaosblade 类故障将在容器 <name> 内注入（docker exec；网络类故障仍走宿主机）`，
-跑之前就能确认没配错。同样地，`index.csv` 里多了一列 `container`，事后能分辨每一轮打在哪；
-引擎的 `run-meta.json` 也会在 `database.containerName` 记下容器名（没配就不写这个键）。
+The preflight prints the following under the line of each database configured with `container`:
+`---- <dbKey>: chaosblade-type faults will be injected inside container <name> (docker exec; network faults still go to the host)`, so you can confirm the configuration is correct before running. Likewise, `index.csv` gains a `container` column, so you can tell afterwards which target each round hit;
+the engine's `run-meta.json` also records the container name under `database.containerName` (the key is omitted if not configured).
 
-### 9.1 容器库上的「应用配置」：重启命令要自己写
+### 9.1 "Apply Configuration" on Containerized Databases: You Must Write the Restart Command Yourself
 
-后端**不会**替你合成重启命令（systemd / docker / gs_ctl 一概不猜），只把 `restartCmd`
-原样下发给 agent。库跑在容器里时，宿主机上那条 `gs_ctl` / `systemctl` 会重启到**另一个**库：
+The backend will **not** synthesize the restart command for you (it does not guess systemd / docker / gs_ctl at all); it only delivers `restartCmd` to the agent verbatim. When the database runs in a container, the `gs_ctl` / `systemctl` command on the host will restart **a different** database:
 
 ```yaml
     container: og-db
     params:
       shared_buffers: 2GB
       max_connections: "500"
-    # 在**宿主机**上执行、不套 docker exec → 直接 docker restart；
-    # 必须 detach（nohup … &），否则会被 agent 侧 30 秒的单命令等待上限 kill 掉等待。
+    # Executed on the **host**, without wrapping in docker exec → use docker restart directly;
+    # it must be detached (nohup ... &), otherwise the agent-side 30-second single-command wait limit will kill the wait.
     restartCmd: 'nohup docker restart og-db >/tmp/rb_restart.log 2>&1 &'
 ```
 
-另有一条容易踩的：磁盘类故障的路径按**容器内**路径解析，
+Another easy trap: disk fault paths are resolved as **in-container** paths.
 `disk.fill.path` / `disk.filemove.src-path` / `disk.fileremoved.file-path` / `disk.filechmod.filepath`
-要填 `SHOW data_directory` 读到的容器内路径，不是宿主机的挂载路径。
-（文件类故障的路径可以不自己填，见第 10 节。）
+must be filled with the in-container paths read from `SHOW data_directory`, not the host mount paths.
+(Paths for file-type faults can be left unfilled; see Section 10.)
 
 ---
 
-## 10. 文件类故障：路径交给后端推荐（`--auto-file-targets`）
+## 10. File-Type Faults: Let the Backend Recommend Paths (`--auto-file-targets`)
 
-文件类故障要打哪个文件，取决于这一轮灌完数据后库长什么样（库目录在哪、最热的表是哪张、
-它的段文件叫什么）。手填的路径一旦和实际不符，故障就打在空气上——**注入报成功、指标毫无变化**，
-这类"假成功"最难查。所以脚本给了一根开关：
+Which file a file-type fault should target depends on what the database looks like after this round's data load (where the database directory is, which table is hottest, and what its segment files are called). Once a manually filled path does not match reality, the fault hits nothing -- **injection reports success while metrics do not change at all**, and this kind of "false success" is the hardest to diagnose. Therefore the script provides a switch:
 
 ```bash
-# 打开：所有文件类故障的路径参数换成 @auto: 哨兵，由引擎在开跑那一刻查库解析成真实路径
+# Enable: replace the path parameters of all file-type faults with @auto: sentinels, and the engine resolves them into real paths by querying the database at the moment the run starts
 python3 scripts/resbench_matrix.py -c scripts/matrix-example.yaml --execute --auto-file-targets
 
-# 不加：完全按 YAML 里写的参数跑（今天的默认行为）
+# Without this flag: run exactly with the parameters written in the YAML (today's default behavior)
 python3 scripts/resbench_matrix.py -c scripts/matrix-example.yaml --execute
 ```
 
-开关**只改路径参数**，`mark` / `content` / `duration` 这些仍按 YAML 写的样子；
-数据库类故障（`sql.*` / `txn.*` / `connection.*` …）完全不受影响。dry-run 会先把替换结果打出来：
+The switch **changes only path parameters**; `mark` / `content` / `duration` and the like remain as written in the YAML;
+database-type faults (`sql.*` / `txn.*` / `connection.*` …) are completely unaffected. The dry-run prints the replacement result first:
 
 ```
---auto-file-targets：1 轮的文件类故障改用推荐参数
-  → oglocal_bs_O-filemove_r1：1 个文件类故障改用推荐参数 ——
-    File Move（src-path → @auto:db-dir、dst-dir → @auto:pgdata）
+--auto-file-targets: file-type faults in 1 round use recommended parameters
+  → oglocal_bs_O-filemove_r1: 1 file-type fault uses recommended parameters --
+    File Move (src-path → @auto:db-dir, dst-dir → @auto:pgdata)
 ```
 
-### 10.1 四个故障各换成什么
+### 10.1 What Each of the Four Faults Is Replaced With
 
-哨兵取值来自后端 `FileFaultTargetService.suggestFor` 给每个故障标的**高强度档**推荐项——
-就是前端故障表单点「推荐」会高亮的那一条，不是脚本自己编的：
+The sentinel values come from the **high-intensity tier** recommendations that the backend's `FileFaultTargetService.suggestFor` marks for each fault --
+exactly the entry highlighted when you click "Recommend" in the frontend fault form, not invented by the script:
 
-| 故障 nameKey | 路径参数 | 打开的哨兵 | 对应后端的哪条规则 |
+| Fault nameKey | Path parameter | Sentinel enabled | Corresponding backend rule |
 |---|---|---|---|
-| `...disk.filemove` | `src-path` | `@auto:db-dir` | `filemove:high` → 整个库目录 |
-| `...disk.filemove` | `dst-dir` | `@auto:pgdata` | `filemove:dst-dir` → 数据总目录（PG 的 PGDATA / MySQL 的 `@@datadir`） |
-| `...disk.filechmod` | `filepath` | `@auto:db-dir` | `filechmod:high` → 整个库目录 |
-| `...disk.fileappend` | `filepath` | `@auto:hottest-last-segment` | `fileappend:high` → 最热表的最后一段 |
-| `...disk.fileremoved` | `file-path` | `@auto:hottest-file` | **后端没有这条规则**，脚本自定 → 取最热文件的第 0 段 |
+| `...disk.filemove` | `src-path` | `@auto:db-dir` | `filemove:high` → the entire database directory |
+| `...disk.filemove` | `dst-dir` | `@auto:pgdata` | `filemove:dst-dir` → the data home directory (PGDATA for PG / `@@datadir` for MySQL) |
+| `...disk.filechmod` | `filepath` | `@auto:db-dir` | `filechmod:high` → the entire database directory |
+| `...disk.fileappend` | `filepath` | `@auto:hottest-last-segment` | `fileappend:high` → the last segment of the hottest table |
+| `...disk.fileremoved` | `file-path` | `@auto:hottest-file` | **The backend has no such rule**; defined by the script → takes segment 0 of the hottest file |
 
-哨兵能用的名字就这六个：`db-dir`、`hottest-file`、`hottest-last-segment`、
-`hottest-mid-segment`（最热表第 1 段，且它不能是最后一段）、`datadir`、
-`pgdata`（老名字，与 `datadir` 是同一个值）。
-要别的组合，直接写进 YAML 的 `params` 即可（不加开关时逐字透传）；
-名字写错引擎会报错并列出可选项，不会静默忽略。
+There are only six usable sentinel names: `db-dir`, `hottest-file`, `hottest-last-segment`,
+`hottest-mid-segment` (segment 1 of the hottest table, and it must not be the last segment), `datadir`,
+`pgdata` (an old name, the same value as `datadir`).
+For other combinations, write them directly into the YAML `params` (passed through verbatim when the switch is off);
+a misspelled name causes the engine to report an error and list the options, rather than being silently ignored.
 
-哨兵是**按库类型现场解析**的，同一个名字在不同库上落到不同文件：
+Sentinels are **resolved on the spot according to database type**; the same name resolves to a different file on different databases:
 
-| | 数据总目录（`datadir` / `pgdata`） | 最热表的文件 | 分段 |
+| | Data home directory (`datadir` / `pgdata`) | Hottest table's file | Segmentation |
 |---|---|---|---|
-| PostgreSQL | `PGDATA` | `base/<oid>/<relfilenode>` | 1 GiB 一段，有第 0 段 / 最后一段 / 中间段之分 |
-| MySQL | `@@datadir` | `<datadir>/<库>/<表>.ibd` | InnoDB 一表一个文件、不分段 |
+| PostgreSQL | `PGDATA` | `base/<oid>/<relfilenode>` | 1 GiB per segment, with segment 0 / last segment / middle segments |
+| MySQL | `@@datadir` | `<datadir>/<database>/<table>.ibd` | InnoDB uses one file per table and does not segment |
 
-所以 MySQL 上 `hottest-last-segment` 就是整张 `.ibd`（不报错），`hottest-mid-segment`
-明确报"解析不出路径"（不分段的库没有中间段），其余库类型报"暂不支持按库类型…挑选目标文件"。
+Therefore, on MySQL, `hottest-last-segment` is the entire `.ibd` (without error), while `hottest-mid-segment`
+explicitly reports "cannot resolve a path" (a non-segmented database has no middle segment); other database types report "selecting target files by database type is not yet supported".
 
-### 10.2 两个必须知道的
+### 10.2 Two Things You Must Know
 
-- **这四个 nameKey 不在引擎的故障目录里。** `--list-faults` 里它们标着 `*` 并注明"脚本自带"：
-  引擎的 `config/fault-cases.yaml` 只收了 DBChaos 的 18 个库内故障，文件类是 chaosblade 的
-  宿主机操作，引擎用 switch 直接接，所以目录接口查不到它们的条目。nameKey 是有效的。
-- **建仓的那一轮不是问题，哨兵只是解析得晚。** `@auto:` 要在库里查表才能定位文件，
-  而 `create` / `load` / `reload` 会先 DROP + CREATE 再灌数据 —— 文件号是那之后才生成的，
-  提交那一刻解析必然过期。所以引擎在提交时**故意不解析**，把哨兵原样写进配置，
-  由 job 在 `create + load` 做完之后、负载与故障注入开始之前解析：
-  「先建仓完成 → 再确认文件故障的参数 → 再从第一个测试开始跑」。tpcc 每组第一轮强制
-  reload，用这一条就能直接跑，不需要先跑一轮预热。
-  dry-run 会把这类轮次单独列出来（`!` 开头，不算校验问题）。
-  反过来，`create` / `load` / `reload` 全为假（打库里现成的数据）时引擎在提交那一刻就解析，
-  解析不了当场拒绝。
+- **These four nameKeys are not in the engine's fault catalog.** In `--list-faults` they are marked with `*` and noted as "provided by the script":
+  the engine's `config/fault-cases.yaml` includes only the 18 in-database faults of DBChaos, whereas file-type faults are chaosblade
+  host operations that the engine handles directly with a switch, so the catalog API cannot find their entries. The nameKeys are valid.
+- **The round that creates the warehouse is not a problem; the sentinel is simply resolved later.** `@auto:` requires querying the database to locate files,
+  while `create` / `load` / `reload` first DROP + CREATE and then load data -- file numbers are generated only after that,
+  so resolving at submission time would inevitably be stale. Therefore the engine **deliberately does not resolve** at submission; it writes the sentinel into the configuration as-is,
+  and the job resolves it after `create + load` completes and before the workload and fault injection begin:
+  "first finish creating the warehouse → then confirm the parameters of the file faults → then start running from the first test".
+  For tpcc, the first round of each group forces reload, so this rule alone allows a direct run without a warm-up round first.
+  The dry-run lists such rounds separately (prefixed with `!`, not counted as validation problems).
+  Conversely, when `create` / `load` / `reload` are all false (operating on data already present in the database), the engine resolves at submission time and rejects on the spot if resolution fails.

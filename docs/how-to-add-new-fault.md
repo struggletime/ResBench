@@ -1,77 +1,77 @@
-# 如何新增一个数据库故障（DBChaos + ResBench 全链路）
+# How to Add a New Database Fault (DBChaos + ResBench End to End)
 
-> 适用版本：DBChaos 0.0.1 + ResBench fault-verification 分支
+> Applies to: DBChaos 0.0.1 + ResBench fault-verification branch
 >
-> 本文描述从“故障注入实现”到“ResBench 前端可选/验证”的完整接入流程。
-> 核心思路：**故障实现放在 DBChaos，故障定义放在 ResBench YAML，前端自动动态展示。**
+> This document describes the complete integration process from "fault injection implementation" to "ResBench frontend selectable/verifiable".
+> Core idea: **Fault implementations live in DBChaos, fault definitions live in the ResBench YAML, and the frontend displays them automatically and dynamically.**
 
 ---
 
-## 1. 整体架构回顾
+## 1. Architecture Overview
 
 ```text
-ResBench 前端
+ResBench frontend
   → GET /suite/faults/catalog
-      → ResBench Engine 读 backend/resbenchmark/config/fault-cases.yaml
-          → 生成注入/自检命令
-              → Agent /inject、/check
-                  → DBChaos：java -jar DBChaos.jar --db <db> <subsystem> <case> ...
+      → ResBench Engine reads backend/resbenchmark/config/fault-cases.yaml
+          → generates injection/self-check commands
+              → Agent /inject, /check
+                  → DBChaos: java -jar DBChaos.jar --db <db> <subsystem> <case> ...
 ```
 
-所以新增一个故障，通常需要改两个仓库：
+Therefore, adding a new fault usually requires modifying two repositories:
 
-| 层 | 需要做什么 | 文件位置 |
+| Layer | What to do | File location |
 |---|---|---|
-| DBChaos | 实现新的注入 Case（必要时实现 check 自检） | `DBChaos/src/chaos/inject/`、`DBChaos/resources/registry/registry.json` |
-| ResBench | 在故障目录中注册该故障，配置参数、注入命令、自检命令 | `ResBench/backend/resbenchmark/config/fault-cases.yaml` |
+| DBChaos | Implement a new injection Case (and a check self-test when necessary) | `DBChaos/src/chaos/inject/`, `DBChaos/resources/registry/registry.json` |
+| ResBench | Register the fault in the fault catalog, and configure its parameters, injection command, and check command | `ResBench/backend/resbenchmark/config/fault-cases.yaml` |
 
-前端通常**不需要改代码**：故障列表由 `/suite/faults/catalog` 动态驱动。
+The frontend usually **does not need code changes**: the fault list is driven dynamically by `/suite/faults/catalog`.
 
 ---
 
-## 2. 完整流程图
+## 2. Complete Workflow
 
 ```text
-DBChaos 侧：
-  1. 选择子系统 + 新故障关键字，如 txn / long_hold_lock
-  2. 新建注入器类 LongHoldLockInject
-  3. 在 registry.json 注册 Case
-  4. （推荐）为它写 check 自检
-  5. 构建 DBChaos.jar 并手工验证
+DBChaos side:
+  1. Choose a subsystem + a new fault keyword, e.g. txn / long_hold_lock
+  2. Create the injector class LongHoldLockInject
+  3. Register the Case in registry.json
+  4. (Recommended) Write a check self-test for it
+  5. Build DBChaos.jar and verify manually
 
-ResBench 侧：
-  6. 在 fault-cases.yaml 增加一个故障定义
-  7. 配置 injection 命令模板
-  8. （可选但推荐）配置 check 命令模板
-  9. 重启/热加载 Engine
-  10. 前端自动出现新故障，开始测试并观察验证徽章
+ResBench side:
+  6. Add a fault definition in fault-cases.yaml
+  7. Configure the injection command template
+  8. (Optional but recommended) Configure the check command template
+  9. Restart/hot-reload the Engine
+  10. The new fault appears automatically in the frontend; start testing and observe the verification badge
 ```
 
 ---
 
-## 3. DBChaos 侧：实现故障注入
+## 3. DBChaos Side: Implementing Fault Injection
 
-### 3.1 确定子系统和 Case 名
+### 3.1 Determine the Subsystem and Case Name
 
-DBChaos 已有子系统：
+DBChaos has the following subsystems:
 
-- `session`：连接与会话
-- `sql`：SQL 编译与优化
-- `exec`：执行引擎
-- `txn`：事务与并发控制
-- `storage`：存储引擎
-- `buffer`：缓冲管理
-- `log`：日志/恢复
-- `quota`：资源治理
-- `check`：自检专用子系统
+- `session`: connections and sessions
+- `sql`: SQL compilation and optimization
+- `exec`: execution engine
+- `txn`: transactions and concurrency control
+- `storage`: storage engine
+- `buffer`: buffer management
+- `log`: logging/recovery
+- `quota`: resource governance
+- `check`: dedicated subsystem for self-checks
 
-新故障尽量挂到已有子系统，避免无谓新增子系统。
+Attach new faults to existing subsystems whenever possible, and avoid adding new subsystems unnecessarily.
 
-### 3.2 新建注入器类
+### 3.2 Create the Injector Class
 
-在 `DBChaos/src/chaos/inject/` 下新建 `XxxInject.java`。
+Create `XxxInject.java` under `DBChaos/src/chaos/inject/`.
 
-骨架：
+Skeleton:
 
 ```java
 package chaos.inject;
@@ -91,11 +91,11 @@ public class LongHoldLockInject extends BaseFaultInject {
             return;
         }
 
-        // 1. 解析参数
+        // 1. Parse arguments
         String durationStr = getArg(args, "-duration");
         String table = getArg(args, "-table");
         if (durationStr == null || table == null) {
-            System.err.println("缺少必填参数 -duration 或 -table");
+            System.err.println("Missing required parameter -duration or -table");
             printHelp();
             return;
         }
@@ -104,26 +104,26 @@ public class LongHoldLockInject extends BaseFaultInject {
         int holders = parseIntArg(args, "-holders", 2);
         int rows = parseIntArg(args, "-rows", 500);
 
-        // 2. 按数据库语系初始化 SQL / JDBC 逻辑
+        // 2. Initialize SQL / JDBC logic per database family
         String sqlType = getStandardDbType();
         if ("postgresql".equals(sqlType)) {
-            // PostgreSQL/openGauss 分支
+            // PostgreSQL/openGauss branch
         } else if ("mysql".equals(sqlType)) {
-            // MySQL/OceanBase 分支
+            // MySQL/OceanBase branch
         }
 
-        // 3. 执行注入逻辑（多线程、事务、建临时表等）
-        // 4. 持续 durationMs，finally 中清理
-        System.out.println("LongHoldLock 故障注入结束");
+        // 3. Execute the injection logic (multi-threading, transactions, temporary tables, etc.)
+        // 4. Last for durationMs, clean up in finally
+        System.out.println("LongHoldLock fault injection finished");
     }
 
     @Override
     public void printHelp() {
-        System.out.println("\nlong_hold_lock 用法: java -jar DBChaos-0.0.1.jar --db <DB_TYPE> txn long_hold_lock [OPTIONS]");
-        System.out.println("  -duration  必填。故障持续时长 (ms)");
-        System.out.println("  -table     必填。目标表");
-        System.out.println("  -holders   选填。持锁线程数");
-        System.out.println("  -rows      选填。锁行数");
+        System.out.println("\nlong_hold_lock usage: java -jar DBChaos-0.0.1.jar --db <DB_TYPE> txn long_hold_lock [OPTIONS]");
+        System.out.println("  -duration  Required. Fault duration (ms)");
+        System.out.println("  -table     Required. Target table");
+        System.out.println("  -holders   Optional. Number of lock-holding threads");
+        System.out.println("  -rows      Optional. Number of locked rows");
     }
 
     private int parseIntArg(String[] args, String key, int defaultValue) {
@@ -133,24 +133,24 @@ public class LongHoldLockInject extends BaseFaultInject {
 }
 ```
 
-关键点：
+Key points:
 
-- 继承 `BaseFaultInject`，构造时调用 `super(dbType, "FAULT_TYPE")`；
-- 使用 `getArg(args, key)` / `hasArg(args, key)` 解析参数；
-- 用 `getStandardDbType()` 区分 `"postgresql"` / `"mysql"`；
-- 如果某个数据库有独有差异，再用 `this.dbType` 加分支；
-- 注入结束必须清理临时表/释放连接。
+- Extend `BaseFaultInject` and call `super(dbType, "FAULT_TYPE")` in the constructor;
+- Use `getArg(args, key)` / `hasArg(args, key)` to parse arguments;
+- Use `getStandardDbType()` to distinguish `"postgresql"` / `"mysql"`;
+- If a database has its own unique differences, add branches based on `this.dbType`;
+- Temporary tables must be cleaned up and connections released when injection ends.
 
-### 3.3 在 `registry.json` 注册 Case
+### 3.3 Register the Case in `registry.json`
 
-编辑 `DBChaos/resources/registry/registry.json`，在对应子系统的 `cases` 数组中新增：
+Edit `DBChaos/resources/registry/registry.json` and add the following to the `cases` array of the corresponding subsystem:
 
 ```json
 {
   "subsystem": "txn",
   "caseKey": "long_hold_lock",
-  "title": "长事务持锁（新故障示例）",
-  "description": "模拟多个会话长时间持有行锁，制造锁等待。",
+  "title": "Long transaction lock holding (new fault example)",
+  "description": "Simulates multiple sessions holding row locks for a long time, causing lock waits.",
   "injectorClass": "chaos.inject.LongHoldLockInject",
   "exampleArgs": "-duration 60000 -table bmsql_stock",
   "generatorProfiles": [
@@ -171,14 +171,14 @@ public class LongHoldLockInject extends BaseFaultInject {
 }
 ```
 
-### 3.4 构建并验证
+### 3.4 Build and Verify
 
 ```bash
 cd DBChaos-20260630/DBChaos-20260630
 ./build_for_linux.sh DBChaos
 ```
 
-验证 CLI 能识别：
+Verify that the CLI recognizes it:
 
 ```bash
 java -jar DBChaos-0.0.1.jar --db opengauss txn long_hold_lock --help
@@ -186,13 +186,13 @@ java -jar DBChaos-0.0.1.jar --db opengauss txn long_hold_lock --help
 
 ---
 
-## 4. DBChaos 侧：为故障添加 check（推荐）
+## 4. DBChaos Side: Adding a check for the Fault (Recommended)
 
-如果没有 check，ResBench 注入后显示 `UNKNOWN`，无法验证故障是否生效。建议新故障同时提供 check。
+Without a check, ResBench displays `UNKNOWN` after injection and cannot verify whether the fault took effect. It is recommended to provide a check together with a new fault.
 
-### 4.1 新建 Check 类
+### 4.1 Create the Check Class
 
-在 `DBChaos/src/chaos/inject/` 下新建 `CheckLongHoldLockInject.java`。
+Create `CheckLongHoldLockInject.java` under `DBChaos/src/chaos/inject/`.
 
 ```java
 package chaos.inject;
@@ -219,7 +219,7 @@ public class CheckLongHoldLockInject extends BaseFaultInject {
         String table = getArg(args, "-table");
         if (table == null) table = "bmsql_stock";
 
-        // 以 PostgreSQL 系为例：统计该表上的排他锁等待/持有会话数
+        // Using the PostgreSQL family as an example: count the sessions waiting for/holding exclusive locks on the table
         int locks = countLocks(table);
         boolean enforced = locks > 0;
 
@@ -245,9 +245,9 @@ public class CheckLongHoldLockInject extends BaseFaultInject {
 
     @Override
     public void printHelp() {
-        System.out.println("\ncheck long_hold_lock 用法: java -jar DBChaos-0.0.1.jar --db <DB_TYPE> check long_hold_lock [OPTIONS]");
-        System.out.println("  -table 选填。目标表名，默认 bmsql_stock");
-        System.out.println("  -url/-user/-password 选填。连接覆盖参数");
+        System.out.println("\ncheck long_hold_lock usage: java -jar DBChaos-0.0.1.jar --db <DB_TYPE> check long_hold_lock [OPTIONS]");
+        System.out.println("  -table Optional. Target table name, defaults to bmsql_stock");
+        System.out.println("  -url/-user/-password Optional. Connection override parameters");
     }
 
     private static String contractJson(
@@ -268,28 +268,28 @@ public class CheckLongHoldLockInject extends BaseFaultInject {
 }
 ```
 
-约束：
+Constraints:
 
-- **stdout 只能输出一行契约 JSON**；
-- check 必须是只读、瞬时查询；
-- 建议按 `getStandardDbType()` 写 PostgreSQL / MySQL 两套查询。
+- **stdout must output only one line of contract JSON**;
+- check must be a read-only, instantaneous query;
+- It is recommended to write two sets of queries for PostgreSQL / MySQL based on `getStandardDbType()`.
 
-### 4.2 在 `registry.json` 中注册 check
+### 4.2 Register the check in `registry.json`
 
 ```json
 {
   "subsystem": "check",
   "caseKey": "long_hold_lock",
-  "title": "长事务持锁自检",
-  "description": "检查 long_hold_lock 是否正在生效（按目标表锁数量判定）。",
+  "title": "Long transaction lock-holding self-check",
+  "description": "Checks whether long_hold_lock is currently in effect (based on the number of locks on the target table).",
   "injectorClass": "chaos.inject.CheckLongHoldLockInject",
   "exampleArgs": "-table bmsql_stock"
 }
 ```
 
-check 不需要 `generatorProfiles`，因为不会作为故障点进配置生成器。
+check does not need `generatorProfiles`, because it is not used as a fault point by the configuration generator.
 
-### 4.3 验证 check
+### 4.3 Verify the check
 
 ```bash
 java -jar DBChaos-0.0.1.jar --db opengauss check long_hold_lock --help
@@ -297,14 +297,14 @@ java -jar DBChaos-0.0.1.jar --db opengauss check long_hold_lock --help
 
 ---
 
-## 5. ResBench 侧：在 fault-cases.yaml 中声明故障
+## 5. ResBench Side: Declaring the Fault in fault-cases.yaml
 
-编辑 `ResBench/backend/resbenchmark/config/fault-cases.yaml`，新增一段：
+Edit `ResBench/backend/resbenchmark/config/fault-cases.yaml` and add a new block:
 
 ```yaml
 faultinject.fault.txn.long_hold_lock:
-  name: { zh: 长事务持锁, en: Long Transaction Lock Holding }
-  description: { zh: 模拟多个会话长期持有行锁，制造锁等待与阻塞, en: Emulates long-running row-lock holders to cause lock waits }
+  name: { zh: Long Transaction Lock Holding, en: Long Transaction Lock Holding }
+  description: { zh: Emulates multiple sessions holding row locks for a long time, causing lock waits and blocking, en: Emulates long-running row-lock holders to cause lock waits }
   category: database
   autoRecovery: 1
   defaultDuration: 60
@@ -314,23 +314,23 @@ faultinject.fault.txn.long_hold_lock:
       type: string
       default: bmsql_stock
       required: true
-      label: { zh: 目标表, en: Target Table }
+      label: { zh: Target Table, en: Target Table }
     holders:
       type: int
       default: 2
       required: false
-      label: { zh: 持锁线程数, en: Lock Holders }
+      label: { zh: Lock Holders, en: Lock Holders }
     rows:
       type: int
       default: 500
       required: false
-      label: { zh: 锁定行数, en: Locked Rows }
+      label: { zh: Locked Rows, en: Locked Rows }
     duration:
       type: int
       unit: s
       default: 60
       required: false
-      label: { zh: 持续时间, en: Duration }
+      label: { zh: Duration, en: Duration }
   injection:
     command: >-
       java -jar {{DBCHAOS_JAR}} --db {{dbType}} txn long_hold_lock
@@ -344,108 +344,108 @@ faultinject.fault.txn.long_hold_lock:
       -url {{dbUrl}} -user {{user}} -password {{password}}
 ```
 
-说明：
+Notes:
 
-- `{{DBCHAOS_JAR}}` / `{{dbType}}` / `{{dbUrl}}` / `{{user}}` / `{{password}}` 是框架上下文变量；
-- `{{duration|60|1000}}` 表示：表单参数 duration 缺省 60，再乘 1000 转毫秒；
-- 不配 `check` 时故障仍可注入，但验证状态为 UNKNOWN；
-- `asyncInjection: true` 表示 DBChaos 持续型故障使用 Agent dispatch 模式。
-
----
-
-## 6. 前端
-
-**通常不需要改前端代码。**
-
-前端启动时会调用 `/suite/faults/catalog`，把 yaml 中新增的故障动态加入：
-
-- 分类 tab 自动出现；
-- 参数表单自动渲染；
-- 故障卡片自动显示 `hasCheck`；
-- 注入后会显示 ENFORCED / NOT_ENFORCED / ERROR / UNKNOWN 徽章。
-
-如果前端内置 `frontend/src/config/faultConfig.js` 中没有该类型，`hydrateFaultCatalog()` 会自动创建动态定义。
+- `{{DBCHAOS_JAR}}` / `{{dbType}}` / `{{dbUrl}}` / `{{user}}` / `{{password}}` are framework context variables;
+- `{{duration|60|1000}}` means: the form parameter duration defaults to 60, then is multiplied by 1000 to convert it to milliseconds;
+- If `check` is not configured, the fault can still be injected, but the verification status is UNKNOWN;
+- `asyncInjection: true` indicates that the DBChaos continuous fault uses the Agent dispatch mode.
 
 ---
 
-## 7. 重启/生效与验证
+## 6. Frontend
 
-### 7.1 重新构建 DBChaos
+**No frontend code changes are usually required.**
+
+At startup, the frontend calls `/suite/faults/catalog` and dynamically adds the faults newly declared in the yaml:
+
+- Category tabs appear automatically;
+- The parameter form is rendered automatically;
+- Fault cards automatically display `hasCheck`;
+- After injection, an ENFORCED / NOT_ENFORCED / ERROR / UNKNOWN badge is displayed.
+
+If the fault type is not present in the frontend built-in `frontend/src/config/faultConfig.js`, `hydrateFaultCatalog()` automatically creates a dynamic definition.
+
+---
+
+## 7. Restart/Take Effect and Verification
+
+### 7.1 Rebuild DBChaos
 
 ```bash
 cd DBChaos-20260630/DBChaos-20260630
 ./build_for_linux.sh DBChaos
 ```
 
-并部署到 Agent 实际使用的路径，例如：
+and deploy it to the path actually used by the Agent, for example:
 
 ```bash
 cp DBChaos-0.0.1.jar /opt/DBChaos/DBChaos.jar
 ```
 
-### 7.2 重启 ResBench Engine / 重新加载目录
+### 7.2 Restart the ResBench Engine / Reload the Catalog
 
-修改 `fault-cases.yaml` 后，重启 Engine 让 `FaultCatalogLoader` 重新加载：
+After modifying `fault-cases.yaml`, restart the Engine to make `FaultCatalogLoader` reload it:
 
 ```text
-停止 Engine → 启动 Engine → 检查日志：
+Stop Engine → Start Engine → Check the log:
 [FaultCatalog] loaded N fault definitions from ...
 ```
 
-### 7.3 手工验证
+### 7.3 Manual Verification
 
-先验证 DBChaos 命令：
+First verify the DBChaos commands:
 
 ```bash
 java -jar DBChaos-0.0.1.jar --db opengauss txn long_hold_lock --help
 java -jar DBChaos-0.0.1.jar --db opengauss check long_hold_lock --help
 ```
 
-再在前端“数据库配置 → 工作负载配置 → 不利因素注入”中看到新故障，加入并开始测试。
+Then locate the new fault in the frontend under "Database Configuration → Workload Configuration → Fault Injection", add it, and start the test.
 
 ---
 
-## 8. 检查清单
+## 8. Checklist
 
-| 检查项 | 是否完成 |
+| Check Item | Completed |
 |---|---|
-| DBChaos 注入器类已创建 | ☐ |
-| DBChaos `registry.json` 已注册 Case | ☐ |
-| DBChaos 已重新构建 | ☐ |
-| （推荐）check 类已创建并在 registry 注册 | ☐ |
-| ResBench `fault-cases.yaml` 已新增故障定义 | ☐ |
-| `{{DBCHAOS_JAR}}/{{dbType}}/{{dbUrl}}` 等模板变量正确 | ☐ |
-| Engine 重启后日志显示加载到该故障 | ☐ |
-| 前端能展示该故障和参数表单 | ☐ |
-| 测试中能注入，并看到验证徽章 | ☐ |
+| DBChaos injector class created | ☐ |
+| Case registered in DBChaos `registry.json` | ☐ |
+| DBChaos rebuilt | ☐ |
+| (Recommended) check class created and registered in the registry | ☐ |
+| Fault definition added to ResBench `fault-cases.yaml` | ☐ |
+| Template variables such as `{{DBCHAOS_JAR}}/{{dbType}}/{{dbUrl}}` are correct | ☐ |
+| After the Engine restarts, the log shows that the fault was loaded | ☐ |
+| The frontend can display the fault and its parameter form | ☐ |
+| The fault can be injected during a test, and the verification badge is displayed | ☐ |
 
 ---
 
-## 9. 常见问题
+## 9. FAQ
 
-### 9.1 不写 check，会影响使用吗？
+### 9.1 Does not writing a check affect usage?
 
-不影响注入。ResBench 会显示 `UNKNOWN`，表示“未配置自检，无法确认是否生效”。
+It does not affect injection. ResBench displays `UNKNOWN`, which means "no self-check configured, effectiveness cannot be confirmed".
 
-### 9.2 为什么 check 输出必须是 JSON？
+### 9.2 Why must the check output be JSON?
 
-ResBench Agent 的 `/check` 只做透传：
+The ResBench Agent's `/check` only passes data through:
 
 ```text
-DBChaos check stdout → Agent 校验是否为契约 JSON → ResBench 判定状态
+DBChaos check stdout → Agent validates whether it is contract JSON → ResBench determines the status
 ```
 
-如果 stdout 里有额外日志、ANSI 彩色字符，Agent 会返回错误，ResBench 显示 `ERROR`。
+If stdout contains extra logs or ANSI color characters, the Agent returns an error and ResBench displays `ERROR`.
 
-### 9.3 只需要支持 openGauss，也要写 MySQL 分支吗？
+### 9.3 If I only need to support openGauss, do I still need to write a MySQL branch?
 
-建议按 `getStandardDbType()` 写两套，或者至少写 PostgreSQL 系分支。
+It is recommended to write two sets based on `getStandardDbType()`, or at least write the PostgreSQL-family branch.
 
-如果不适配 MySQL，使用 `--db mysql` 时该 Case 会执行不兼容 SQL 而失败。如果当前只面向 openGauss 部署，可以只在代码注释中说明“暂只支持 PG 系”，ResBench yaml 侧仅对该 DB 显示。
+If MySQL is not supported, the Case will execute incompatible SQL and fail when `--db mysql` is used. If the current deployment targets openGauss only, you can note "PG family only for now" in code comments and display the fault only for that DB on the ResBench yaml side.
 
-### 9.4 能否用脚手架自动生成？
+### 9.4 Can a scaffold generate it automatically?
 
-可以：
+Yes:
 
 ```bash
 cd DBChaos-20260630/DBChaos-20260630
@@ -453,8 +453,8 @@ cd DBChaos-20260630/DBChaos-20260630
   --subsystem txn \
   --case long_hold_lock \
   --class-name LongHoldLockInject \
-  --title "长事务持锁" \
-  --description "模拟长时间持锁" \
+  --title "Long transaction lock holding" \
+  --description "Simulates long-term lock holding" \
   --example-args "-duration 60000 -table bmsql_stock" \
   --generator-id 221 \
   --generator-key long_hold_lock \
@@ -464,4 +464,4 @@ cd DBChaos-20260630/DBChaos-20260630
   --generator-during-sec 60
 ```
 
-脚手架的 check 类需要自行补充，因为当前脚手架只生成注入器骨架。
+The check class for the scaffold must be added manually, because the current scaffold only generates the injector skeleton.
