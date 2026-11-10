@@ -1,0 +1,189 @@
+/* src/components/HistoryRecordSelector/HistoryRecordSelector.module.css */
+
+.container {
+  margin-bottom: 0;
+}
+
+.searchBar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.searchItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.searchLabel {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  background-color: #f0f9ff;
+  color: #0369a1;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  transition: all 0.2s ease;
+}
+
+.searchLabel:hover {
+  background-color: #e0f2fe;
+  border-color: rgba(14, 165, 233, 0.4);
+}
+
+.searchInput {
+  padding: 5px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 9px;
+  font-size: 13px;
+  min-width: 150px;
+  background: #f8fafc;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: #fff;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.table th,
+.table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+  font-size: 14px;
+}
+
+.table th {
+  background-color: #fafafa;
+  font-weight: 600;
+  color: #333;
+}
+
+.table tr:hover {
+  background-color: #f5f5f5;
+}
+
+.addButton {
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #1890ff;
+  background: none;
+  border: 1px solid #1890ff;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.addButton:hover {
+  background-color: #e6f7ff;
+}
+
+.removeButton {
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #ef4444;
+  background: none;
+  border: 1px solid #ef4444;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.removeButton:hover {
+  background-color: #fef2f2;
+}
+
+.paginationContainer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  padding: 0 12px;
+}
+
+.totalText {
+  font-size: 14px;
+  color: #888;
+}
+
+.searchButton {
+  padding: 6px 16px;
+  background-color: #1890ff;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.searchButton:hover {
+  background-color: #40a9ff;
+}
+
+.loadingBanner {
+  text-align: center;
+  padding: 12px;
+  font-size: 13px;
+  color: #64748b;
+  background: #f8fafc;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.errorBanner {
+  text-align: center;
+  padding: 12px;
+  font-size: 13px;
+  color: #dc2626;
+  background: #fef2f2;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.addButton:disabled {
+  color: #94a3b8;
+  border-color: #d1d5db;
+  cursor: not-allowed;
+  background: #f3f4f6;
+}
+
+.filterButtons {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.filterButton {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  background-color: #f0f9ff;
+  color: #0369a1;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filterButton:hover {
+  background-color: #e0f2fe;
+  border-color: rgba(14, 165, 233, 0.4);
+}
+
+.filterButtonActive {
+  background-color: #0369a1;
+  color: white;
+  border-color: #0369a1;
+}
+
+.filterButtonActive:hover {
+  background-color: #0284c7;
+}

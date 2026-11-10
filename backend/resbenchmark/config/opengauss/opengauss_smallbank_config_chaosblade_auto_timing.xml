@@ -1,0 +1,155 @@
+<?xml version="1.0"?>
+<parameters xmlns:xi="http://www.w3.org/2001/XInclude">
+
+    <!-- Connection details -->
+    <type>OPENGAUSS</type>
+    <driver>org.postgresql.Driver</driver>
+    <url>jdbc:postgresql://YOUR_DB_HOST:15400,YOUR_DB_HOST:15400,YOUR_DB_HOST:15400,/postgres?sslmode=disable&amp;ApplicationName=smallbank&amp;reWriteBatchedInserts=false&amp;targetServerType=master</url>
+    <nodes>
+        <node>jdbc:postgresql://YOUR_DB_HOST:15400/postgres</node>
+        <node>jdbc:postgresql://YOUR_DB_HOST:15400/postgres</node>
+        <node>jdbc:postgresql://YOUR_DB_HOST:15400/postgres</node>
+    </nodes>
+    <username>test</username>
+    <password>YOUR_PASSWORD</password>
+    <reconnectOnConnectionFailure>true</reconnectOnConnectionFailure>
+    <isolation>TRANSACTION_READ_COMMITTED</isolation>
+    <batchsize>128</batchsize>
+
+    <scalefactor>1</scalefactor>
+    <data_cktype>ONLY_SPECIAL</data_cktype> <!-- ALL_DATA | ONLY_SPECIAL -->
+
+    <!-- The workload -->
+    <terminals>100</terminals>
+
+    <!-- 智能时序模式：系统会自动检测负载稳定窗口并注入故障 -->
+    <faultCases>
+        <case>
+            <id>1</id>
+            <description>CPU Overload</description>
+            <agents>
+                <agent>master:8000</agent>
+            </agents>
+            <injection>
+                <cmd>/opt/chaosblade/blade</cmd>
+                <arg>create</arg>
+                <arg>cpu</arg>
+                <arg>fullload</arg>
+            </injection>
+            <recovery>
+                <cmd>/opt/chaosblade/blade</cmd>
+                <arg>destroy</arg>
+                <arg>cpu</arg>
+                <arg>fullload</arg>
+            </recovery>
+            <autoRecovery>0</autoRecovery>
+        </case>
+        <case>
+            <id>2</id>
+            <description>Disk Full</description>
+            <agents>
+                <agent>master:8000</agent>
+            </agents>
+            <injection>
+                <cmd>/opt/chaosblade/blade</cmd>
+                <arg>create</arg>
+                <arg>disk</arg>
+                <arg>fill</arg>
+                <arg>--path</arg>
+                <arg>/home</arg>
+                <arg>--percent</arg>
+                <arg>100</arg>
+            </injection>
+            <recovery>
+                <cmd>/opt/chaosblade/blade</cmd>
+                <arg>destroy</arg>
+                <arg>disk</arg>
+                <arg>fill</arg>
+                <arg>--path</arg>
+                <arg>/home</arg>
+                <arg>--percent</arg>
+                <arg>100</arg>
+            </recovery>
+            <autoRecovery>0</autoRecovery>
+        </case>
+        <case>
+            <id>3</id>
+            <description>Memory Full</description>
+            <agents>
+                <agent>master:8000</agent>
+            </agents>
+            <injection>
+                <cmd>/opt/chaosblade/blade</cmd>
+                <arg>create</arg>
+                <arg>mem</arg>
+                <arg>load</arg>
+                <arg>--mode</arg>
+                <arg>ram</arg>
+                <arg>--mem-percent</arg>
+                <arg>100</arg>
+            </injection>
+            <recovery>
+                <cmd>/opt/chaosblade/blade</cmd>
+                <arg>destroy</arg>
+                <arg>mem</arg>
+                <arg>load</arg>
+                <arg>--mode</arg>
+                <arg>ram</arg>
+                <arg>--mem-percent</arg>
+                <arg>100</arg>
+            </recovery>
+            <autoRecovery>0</autoRecovery>
+        </case>
+        <case>
+            <id>4</id>
+            <description>Network Loss 10%</description>
+            <agents>
+                <agent>master:8000</agent>
+            </agents>
+            <injection>
+                <cmd>/opt/chaosblade/blade</cmd>
+                <arg>create</arg>
+                <arg>network</arg>
+                <arg>loss</arg>
+                <arg>--percent</arg>
+                <arg>10</arg>
+                <arg>--interface</arg>
+                <arg>enp4s0f1</arg>
+            </injection>
+            <recovery>
+                <cmd>/opt/chaosblade/blade</cmd>
+                <arg>destroy</arg>
+                <arg>network</arg>
+                <arg>loss</arg>
+                <arg>--percent</arg>
+                <arg>10</arg>
+                <arg>--interface</arg>
+                <arg>enp4s0f1</arg>
+            </recovery>
+            <autoRecovery>0</autoRecovery>
+        </case>
+    </faultCases>
+
+    <xi:include href="../smallbank-worker.xml" parse="xml"/>
+    <!-- SmallBank Procedures declaration -->
+    <transactiontypes>
+        <transactiontype>
+            <name>Amalgamate</name>
+        </transactiontype>
+        <transactiontype>
+            <name>Balance</name>
+        </transactiontype>
+        <transactiontype>
+            <name>DepositChecking</name>
+        </transactiontype>
+        <transactiontype>
+            <name>SendPayment</name>
+        </transactiontype>
+        <transactiontype>
+            <name>TransactSavings</name>
+        </transactiontype>
+        <transactiontype>
+            <name>WriteCheck</name>
+        </transactiontype>
+    </transactiontypes>
+</parameters>

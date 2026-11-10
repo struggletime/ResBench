@@ -1,0 +1,1080 @@
+# ============================================================
+# resbench 故障目录（fault-cases.yaml）— DBChaos 全量故障
+#
+# 设计文档 §5：故障定义配置化 —— 加新 DB 故障只需在此加一段（并让 DBChaos 实现注入器），
+# 无需改 Java、无需重新编译；前端表单/双语/必填/验证徽章全自动。
+#
+# 本文件覆盖 DBChaos 全部 18 个真实故障 case（registry.json cases）：
+#   session/max_connection   ×3 模式（conn_storm / conn_exhaustion / thread_saturation）
+#   sql/plan_flip            ×1
+#   sql/stack_overflow       ×3 模式（sql_depth / view_nest / join_bomb）
+#   exec/stack_overflow      ×3 模式（func_recurse / proc_recurse / trans_recurse）
+#   exec/read_amp_trap       ×1
+#   txn/uncommitted_txn      ×1
+#   txn/duplicate_txn        ×1（mode: UPDATE / INSERT）
+#   txn/deadlock_storm       ×1
+#   txn/max_prepared         ×1
+#   storage/mvcc_bloat       ×1
+#   buffer/memory_pressure   ×1
+#   log/massive_rollback     ×1
+#   另有 quota/test_case：DBChaos 用于验证 JSON 注册/CLI 帮助页联动的自测 case，
+#   不是真实故障，故未纳入本目录。
+#
+# ─ 注入命令必须是 DBChaos v2 语法 ───────────────────────────
+#   java -jar {{DBCHAOS_JAR}} --db {{dbType}} <子系统> <case> [参数...]
+#   （--db 显式给数据库类型；子系统 session/sql/exec/txn/storage/buffer/log 是必填位置参数。
+#     旧格式 "…… {{dbType}} <case>" 缺子系统，会被 DBChaos 判为"命令结构已调整"并静默退出 0，
+#     造成注入假成功。本文件所有条目均为 v2 语法。）
+#
+# ─ 模板语法（§5.3） ──────────────────────────────────────
+#   {{var}}                必填（表单参数优先，其次框架上下文变量）
+#   {{var|default}}        可缺省
+#   {{var|default|1000}}   数值乘 1000（duration 秒 → 毫秒）
+#
+# ── 框架上下文变量（权威清单见 FaultCatalogLoader.CONTEXT_VARIABLES） ──
+#   {{dbType}}       DBChaos 使用的库类型：opengauss / postgresql / mysql
+#   {{dbUrl}}        完整 JDBC URL（自动生成）
+#   {{user}}         数据库用户名（来自表单数据库配置）
+#   {{password}}     数据库密码
+#   {{DBCHAOS_JAR}}  DBChaos jar 路径（/opt/DBChaos/DBChaos.jar）
+#   {{agentHost}}    agent 地址 ip:8000（注入目标）
+#   {{rollbackRate}} 派生变量：由参数 rollback-rate（百分数）÷100 得到的小数，
+#                    仅供 massive_rollback 的 -rate 使用
+#
+# ── 参数单位例外（DBChaos 侧规定） ──────────────────────────
+#   txn/duplicate_txn 与 txn/max_prepared 的 -duration 单位是「秒」→ 模板不加 ×1000；
+#   其余 case 的 -duration 单位是「毫秒」→ 模板用 {{duration|默认|1000}}。
+#
+# ── check（自检）覆盖情况 ─────────────────────────────────
+#   DBChaos 目前仅实现 3 个 check case（registry 的 check 子系统）：
+#     check max_connection   （conn_storm / conn_exhaustion / thread_saturation）
+#     check plan_flip        （沙盒表须与注入一致，本文件固定 chaos_plan_flip）
+#     check massive_rollback
+#   其余 13 个故障没有 check 子命令，按设计 §11.4 不配 check 模板 → 注入照常执行，
+#   验证状态显示 UNKNOWN（灰色，附原因「未配置自检命令」），不会误报 ENFORCED。
+#   ⚠ 给没有 check 的故障硬配 check 命令 → agent 侧报错 → 状态变成 ERROR（橙色）。
+#
+# ── v2.2 多语言语法 ────────────────────────────────────────
+#   name/description/params.label/params.description 支持两种写法：
+#     - 纯字符串（单语，原样显示）
+#     - { zh: …, en: … } 对象（前端按当前语言渲染，yaml 优先于 i18n 词典）
+#   ⚠ 含英文逗号的文本必须用「块状」多语言写法（zh: 一行 / en: 一行），
+#     不要写成行内 { zh: …, en: … } —— 行内 flow mapping 会被英文逗号截断成多余键，
+#     SnakeYAML 不报错，但前端会显示残缺（并多出一个 "simulating a ...": null 键）。
+#   params 里写 required: true → 前端渲染红色 * 并拦截空值。
+#   未写 description 的参数，前端描述行渲染为空（不显示任何内容）。
+#
+# fake-check.sh 用法（部署到 agent 主机 /opt/agent/faults/，用于演练验证状态机）：
+#   bash /opt/agent/faults/fake-check.sh <eventual N|never|timeout SEC|invalid|reset> [key]
+#   换模式/重跑前：bash /opt/agent/faults/fake-check.sh reset [key]
+# ============================================================
+
+
+# ============================================================
+# 一、连接与会话管理（session / max_connection）
+# ============================================================
+
+# ------------------------------------------------------------
+# 连接风暴：大量并发连接频繁建立断开
+# 自检：check max_connection -mode conn_storm（多次采样取会话数峰值）
+# ------------------------------------------------------------
+faultinject.fault.connection.surge:
+  name:
+    zh: 连接风暴
+    en: Database Connection Storm
+  description:
+    zh: 以大量并发线程高频建立并断开数据库连接，模拟连接风暴
+    en: Rapidly opens and closes database connections from many concurrent threads, simulating a connection storm
+  category: database
+  autoRecovery: 1
+  defaultDuration: 60
+  asyncInjection: true
+  params:
+    concurrent-connections:
+      type: int
+      default: 200
+      required: true
+      label:
+        zh: 并发连接数
+        en: Concurrent Connections
+      description:
+        zh: 并发短连接线程数，每个线程循环「建连→执行查询→关连接」
+        en: Concurrent short-lived connection threads, each looping connect, query and close
+    duration:
+      type: int
+      unit: s
+      default: 60
+      required: false
+      label:
+        zh: 持续时间
+        en: Duration
+  injection:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} session max_connection
+      -mode conn_storm -count {{concurrent-connections|200}}
+      -duration {{duration|60|1000}} -url {{dbUrl}} -user {{user}} -password {{password}}
+  check:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} check max_connection
+      -mode conn_storm -min-sessions 1
+      -url {{dbUrl}} -user {{user}} -password {{password}}
+
+# ------------------------------------------------------------
+# 连接池耗尽：抢占连接直至 max_connections 上限
+# 自检：check max_connection -mode conn_exhaustion（计数常驻会话）
+# ------------------------------------------------------------
+faultinject.fault.connection.limit.exceeded:
+  name:
+    zh: 连接数耗尽
+    en: Database Connection Exhaustion
+  description:
+    zh: 并发抢占远超连接上限的会话并持续持有，模拟连接池耗尽
+    en: Grabs and holds far more sessions than the connection limit, exhausting the connection pool
+  category: database
+  autoRecovery: 1
+  defaultDuration: 60
+  asyncInjection: true
+  params:
+    attempted-connections:
+      type: int
+      default: 400
+      required: true
+      label:
+        zh: 目标连接数
+        en: Target Connections
+      description:
+        zh: 想要抢占的连接总数；超过 max_connections 的部分会被拒绝，实际持有数由上限决定
+        en: Total connections to grab; those beyond max_connections are refused, so the held count is capped by the limit
+    duration:
+      type: int
+      unit: s
+      default: 60
+      required: false
+      label:
+        zh: 持续时间
+        en: Duration
+  injection:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} session max_connection
+      -mode conn_exhaustion -count {{attempted-connections|400}}
+      -duration {{duration|60|1000}} -url {{dbUrl}} -user {{user}} -password {{password}}
+  check:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} check max_connection
+      -mode conn_exhaustion -min-sessions 1
+      -url {{dbUrl}} -user {{user}} -password {{password}}
+
+# ------------------------------------------------------------
+# 连接线程饱和：挤兑会话执行线程池
+# 自检：check max_connection -mode thread_saturation（计数常驻会话）
+# ------------------------------------------------------------
+faultinject.fault.connection.thread_saturation:
+  name:
+    zh: 连接线程饱和
+    en: Connection Thread Saturation
+  description:
+    zh: 挤兑数据库会话执行线程池，模拟线程池饱和
+    en: Saturates the database session worker thread pool by flooding sessions
+  category: database
+  autoRecovery: 1
+  defaultDuration: 60
+  asyncInjection: true
+  params:
+    concurrent-connections:
+      type: int
+      default: 32
+      required: true
+      label:
+        zh: 线程池溢出数
+        en: Thread Pool Overflow
+      description:
+        zh: 在线程池上限之外额外挤占的线程数；实际占用 ≈ min(线程池上限 + 该值, max_connections - 2)
+        en: Extra threads beyond the pool limit; actual sessions are about min(pool limit plus this value, max_connections minus 2)
+    duration:
+      type: int
+      unit: s
+      default: 60
+      required: false
+      label:
+        zh: 持续时间
+        en: Duration
+  injection:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} session max_connection
+      -mode thread_saturation -count {{concurrent-connections|32}}
+      -duration {{duration|60|1000}} -url {{dbUrl}} -user {{user}} -password {{password}}
+  check:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} check max_connection
+      -mode thread_saturation -min-sessions 1
+      -url {{dbUrl}} -user {{user}} -password {{password}}
+
+
+# ============================================================
+# 二、SQL 编译与优化（sql）
+# ============================================================
+
+# ------------------------------------------------------------
+# 执行计划翻转：数据倾斜触发统计信息更新，强制 IndexScan/SeqScan 震荡
+# 自检：check plan_flip -table chaos_plan_flip（须与注入的 -table 一致）
+# ------------------------------------------------------------
+faultinject.fault.sql.plan_flip:
+  name:
+    zh: 执行计划翻转
+    en: SQL Plan Flip
+  description:
+    zh: 通过构造数据倾斜触发统计信息更新，强制执行计划震荡
+    en: Triggers optimizer plan oscillation by forcing statistics updates on skewed data
+  category: database
+  autoRecovery: 1
+  defaultDuration: 60
+  asyncInjection: true
+  params:
+    threads:
+      type: int
+      default: 16
+      required: true
+      label:
+        zh: 并发线程数
+        en: Concurrent Threads
+      description:
+        zh: 并发执行查询的线程数
+        en: Threads running concurrent queries
+    count:
+      type: int
+      default: 1000000
+      required: false
+      label:
+        zh: 倾斜数据行数
+        en: Skewed Rows
+      description:
+        zh: 用于制造倾斜、触发统计信息更新的数据行数
+        en: Rows used to create skew and trigger statistics updates
+    interval:
+      type: int
+      unit: ms
+      default: 60000
+      required: false
+      label:
+        zh: 跳变周期
+        en: Flip Interval
+      description:
+        zh: 单次执行计划跳变的间隔（毫秒）
+        en: Interval between two plan flips in milliseconds
+    duration:
+      type: int
+      unit: s
+      default: 60
+      required: false
+      label:
+        zh: 持续时间
+        en: Duration
+  injection:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} sql plan_flip
+      -table chaos_plan_flip -duration {{duration|60|1000}} -threads {{threads|16}}
+      -count {{count|1000000}} -interval {{interval|60000}}
+      -url {{dbUrl}} -user {{user}} -password {{password}}
+  check:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} check plan_flip
+      -table chaos_plan_flip
+      -url {{dbUrl}} -user {{user}} -password {{password}}
+
+# ------------------------------------------------------------
+# 深层表达式解析膨胀：超深逻辑表达式解析爆栈（无 check 子命令）
+# ------------------------------------------------------------
+faultinject.fault.sql.stack_overflow.sql_depth:
+  name:
+    zh: SQL表达式解析爆栈
+    en: SQL Expression Stack Overflow
+  description:
+    zh: 通过深层递归逻辑表达式解析，模拟内核栈溢出
+    en: Overflows the parser stack through deeply nested logical expressions
+  category: database
+  autoRecovery: 1
+  defaultDuration: 30
+  asyncInjection: true
+  params:
+    interval:
+      type: int
+      unit: ms
+      default: 1000
+      required: false
+      label:
+        zh: 注入间隔
+        en: Injection Interval
+      description:
+        zh: 两次注入之间的间隔（毫秒）
+        en: Interval between two injections in milliseconds
+    duration:
+      type: int
+      unit: s
+      default: 30
+      required: false
+      label:
+        zh: 持续时间
+        en: Duration
+  injection:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} sql stack_overflow
+      -mode sql_depth -duration {{duration|30|1000}} -interval {{interval|1000}}
+      -url {{dbUrl}} -user {{user}} -password {{password}}
+
+# ------------------------------------------------------------
+# 视图展开深度膨胀：超深度视图嵌套爆栈（无 check 子命令）
+# ------------------------------------------------------------
+faultinject.fault.sql.stack_overflow.view_nest:
+  name:
+    zh: SQL视图嵌套爆栈
+    en: SQL View Nest Stack Overflow
+  description:
+    zh: 通过超深度视图嵌套，模拟 SQL 编译栈溢出
+    en: Overflows the SQL compiler stack through excessively nested views
+  category: database
+  autoRecovery: 1
+  defaultDuration: 30
+  asyncInjection: true
+  params:
+    interval:
+      type: int
+      unit: ms
+      default: 5000
+      required: false
+      label:
+        zh: 注入间隔
+        en: Injection Interval
+      description:
+        zh: 两次注入之间的间隔（毫秒）
+        en: Interval between two injections in milliseconds
+    duration:
+      type: int
+      unit: s
+      default: 30
+      required: false
+      label:
+        zh: 持续时间
+        en: Duration
+  injection:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} sql stack_overflow
+      -mode view_nest -duration {{duration|30|1000}} -interval {{interval|5000}}
+      -url {{dbUrl}} -user {{user}} -password {{password}}
+
+# ------------------------------------------------------------
+# Join 搜索空间爆炸：多表连接执行计划搜索爆栈（无 check 子命令）
+# ------------------------------------------------------------
+faultinject.fault.sql.stack_overflow.join_bomb:
+  name:
+    zh: SQL Join搜索空间爆炸
+    en: SQL Join Bomb Stack Overflow
+  description:
+    zh: 通过多表连接执行计划搜索，模拟优化器爆栈
+    en: Overflows the optimizer through multi-table join plan search
+  category: database
+  autoRecovery: 1
+  defaultDuration: 30
+  asyncInjection: true
+  params:
+    interval:
+      type: int
+      unit: ms
+      default: 5000
+      required: false
+      label:
+        zh: 注入间隔
+        en: Injection Interval
+      description:
+        zh: 两次注入之间的间隔（毫秒）
+        en: Interval between two injections in milliseconds
+    duration:
+      type: int
+      unit: s
+      default: 30
+      required: false
+      label:
+        zh: 持续时间
+        en: Duration
+  injection:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} sql stack_overflow
+      -mode join_bomb -duration {{duration|30|1000}} -interval {{interval|5000}}
+      -url {{dbUrl}} -user {{user}} -password {{password}}
+
+
+# ============================================================
+# 三、执行引擎（exec）
+# ============================================================
+
+# ------------------------------------------------------------
+# 函数递归执行栈溢出（无 check 子命令）
+# ------------------------------------------------------------
+faultinject.fault.exec.stack_overflow.func_recurse:
+  name:
+    zh: 函数递归执行爆栈
+    en: Exec Function Stack Overflow
+  description:
+    zh: 通过深度递归函数调用，模拟执行引擎栈溢出
+    en: Overflows the execution engine stack through deeply recursive function calls
+  category: database
+  autoRecovery: 1
+  defaultDuration: 30
+  asyncInjection: true
+  params:
+    interval:
+      type: int
+      unit: ms
+      default: 1000
+      required: false
+      label:
+        zh: 注入间隔
+        en: Injection Interval
+      description:
+        zh: 两次注入之间的间隔（毫秒）
+        en: Interval between two injections in milliseconds
+    duration:
+      type: int
+      unit: s
+      default: 30
+      required: false
+      label:
+        zh: 持续时间
+        en: Duration
+  injection:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} exec stack_overflow
+      -mode func_recurse -duration {{duration|30|1000}} -interval {{interval|1000}}
+      -url {{dbUrl}} -user {{user}} -password {{password}}
+
+# ------------------------------------------------------------
+# 存储过程递归执行栈溢出（无 check 子命令）
+# ------------------------------------------------------------
+faultinject.fault.exec.stack_overflow.proc_recurse:
+  name:
+    zh: 存储过程递归爆栈
+    en: Exec Procedure Stack Overflow
+  description:
+    zh: 通过深度递归存储过程，模拟执行引擎栈溢出
+    en: Overflows the execution engine stack through deeply recursive stored procedures
+  category: database
+  autoRecovery: 1
+  defaultDuration: 30
+  asyncInjection: true
+  params:
+    interval:
+      type: int
+      unit: ms
+      default: 1000
+      required: false
+      label:
+        zh: 注入间隔
+        en: Injection Interval
+      description:
+        zh: 两次注入之间的间隔（毫秒）
+        en: Interval between two injections in milliseconds
+    duration:
+      type: int
+      unit: s
+      default: 30
+      required: false
+      label:
+        zh: 持续时间
+        en: Duration
+  injection:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} exec stack_overflow
+      -mode proc_recurse -duration {{duration|30|1000}} -interval {{interval|1000}}
+      -url {{dbUrl}} -user {{user}} -password {{password}}
+
+# ------------------------------------------------------------
+# 读取放大陷阱：快照锚点 + 预热膨胀，扫描型查询放大执行器负载（无 check 子命令）
+# ------------------------------------------------------------
+faultinject.fault.exec.read_amp_trap:
+  name:
+    zh: 读取放大陷阱
+    en: Exec Read Amplification Trap
+  description:
+    zh: 通过快照锚点和预热膨胀制造大量不可见版本，放大扫描负载
+    en: Creates many invisible versions via snapshot anchors and warmup bloat to amplify scan load
+  category: database
+  autoRecovery: 1
+  defaultDuration: 120
+  asyncInjection: true
+  params:
+    warmup:
+      type: int
+      unit: ms
+      default: 30000
+      required: false
+      label:
+        zh: 预热时间
+        en: Warmup
+      description:
+        zh: 制造版本膨胀的预热时长（毫秒）
+        en: Warmup duration for version bloat in milliseconds
+    anchors:
+      type: int
+      default: 1
+      required: false
+      label:
+        zh: 锚定事务数
+        en: Snapshot Anchors
+      description:
+        zh: 钉住快照的锚点事务数
+        en: Anchor transactions that pin the snapshot
+    mutators:
+      type: int
+      default: 8
+      required: false
+      label:
+        zh: 写入线程数
+        en: Mutator Threads
+      description:
+        zh: 预热阶段并发更新的线程数
+        en: Threads performing concurrent updates during warmup
+    scanners:
+      type: int
+      default: 4
+      required: false
+      label:
+        zh: 扫描线程数
+        en: Scanner Threads
+      description:
+        zh: 触发扫描放大的并发线程数
+        en: Threads triggering amplified scans
+    rows:
+      type: int
+      default: 30000
+      required: false
+      label:
+        zh: 初始化行数
+        en: Initial Rows
+      description:
+        zh: 沙盒表初始化行数
+        en: Rows initialized in the sandbox table
+    payload-kb:
+      type: int
+      unit: KB
+      default: 2
+      required: false
+      label:
+        zh: 行载荷大小
+        en: Payload Size
+      description:
+        zh: 每行载荷大小（KB）
+        en: Payload size per row in KB
+    scan-mode:
+      type: string
+      default: mixed
+      required: false
+      label:
+        zh: 扫描模式
+        en: Scan Mode
+      description:
+        zh: 扫描方式，可选 seq 顺序扫描 / index 索引扫描 / mixed 混合
+        en: Scan mode, one of seq, index or mixed
+    duration:
+      type: int
+      unit: s
+      default: 120
+      required: false
+      label:
+        zh: 持续时间
+        en: Duration
+  injection:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} exec read_amp_trap
+      -duration {{duration|120|1000}} -warmup {{warmup|30000}} -anchors {{anchors|1}}
+      -mutators {{mutators|8}} -scanners {{scanners|4}} -rows {{rows|30000}}
+      -payload-kb {{payload-kb|2}} -scan-mode {{scan-mode|mixed}}
+      -url {{dbUrl}} -user {{user}} -password {{password}}
+
+
+# ============================================================
+# 四、事务与并发控制（txn；含 exec 的事务路径递归）
+# ============================================================
+
+# ------------------------------------------------------------
+# 事务上下文爆栈：exec/stack_overflow -mode trans_recurse（无 check 子命令）
+# ------------------------------------------------------------
+faultinject.fault.transaction.stack.overflow:
+  name:
+    zh: 事务上下文爆栈
+    en: Transaction Stack Overflow
+  description:
+    zh: 通过深度嵌套事务，模拟事务上下文栈溢出
+    en: Overflows the transaction context stack through deeply nested transactions
+  category: database
+  autoRecovery: 1
+  defaultDuration: 30
+  asyncInjection: true
+  params:
+    interval:
+      type: int
+      unit: ms
+      default: 1000
+      required: false
+      label:
+        zh: 注入间隔
+        en: Injection Interval
+      description:
+        zh: 两次注入之间的间隔（毫秒）
+        en: Interval between two injections in milliseconds
+    duration:
+      type: int
+      unit: s
+      default: 30
+      required: false
+      label:
+        zh: 持续时间
+        en: Duration
+  injection:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} exec stack_overflow
+      -mode trans_recurse -duration {{duration|30|1000}} -interval {{interval|1000}}
+      -url {{dbUrl}} -user {{user}} -password {{password}}
+
+# ------------------------------------------------------------
+# 长事务持锁：未提交的长事务锁定指定表记录，制造锁冲突（无 check 子命令）
+# ------------------------------------------------------------
+faultinject.fault.txn.uncommitted_txn:
+  name:
+    zh: 长事务持锁
+    en: Uncommitted Transaction Lock
+  description:
+    zh: 模拟业务中未提交的长事务，通过锁定记录制造锁冲突
+    en: Emulates long-running uncommitted transactions that hold row locks and cause lock waits
+  category: database
+  autoRecovery: 1
+  defaultDuration: 60
+  asyncInjection: true
+  params:
+    table:
+      type: string
+      default: bmsql_stock
+      required: true
+      label:
+        zh: 目标表
+        en: Target Table
+      description:
+        zh: 目标业务表名，多个表用逗号分隔
+        en: Target table name, separate multiple tables with commas
+    holders:
+      type: int
+      default: 2
+      required: false
+      label:
+        zh: 持锁事务数
+        en: Holder Threads
+      description:
+        zh: 持锁并发线程数
+        en: Number of concurrent lock-holding threads
+    rows:
+      type: int
+      default: 500
+      required: false
+      label:
+        zh: 锁定行数
+        en: Locked Rows
+      description:
+        zh: 每个线程在每个表上锁定的行数
+        en: Rows locked per thread per table
+    duration:
+      type: int
+      unit: s
+      default: 60
+      required: false
+      label:
+        zh: 持续时间
+        en: Duration
+  injection:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} txn uncommitted_txn
+      -duration {{duration|60|1000}} -table {{table|bmsql_stock}} -holders {{holders|2}}
+      -rows {{rows|500}} -url {{dbUrl}} -user {{user}} -password {{password}}
+
+# ------------------------------------------------------------
+# 热点事务冲突：高并发热点行操作，诱发行锁等待/超时/死锁/唯一约束冲突（无 check 子命令）
+#  本 case 的 -duration 单位是「秒」，模板不加 ×1000
+# ------------------------------------------------------------
+faultinject.fault.txn.duplicate_txn:
+  name:
+    zh: 热点事务冲突
+    en: Duplicate Transaction Conflict
+  description:
+    zh: 模拟高并发热点行操作，诱发行锁等待、超时、死锁或主键冲突
+    en: Emulates high-concurrency hot-row operations to trigger lock waits, timeouts, deadlocks or key conflicts
+  category: database
+  autoRecovery: 1
+  defaultDuration: 60
+  asyncInjection: true
+  params:
+    sessions:
+      type: int
+      default: 50
+      required: false
+      label:
+        zh: 并发会话数
+        en: Concurrent Sessions
+      description:
+        zh: 同时执行热点操作的会话数
+        en: Number of sessions performing hot-row operations
+    mode:
+      type: string
+      default: UPDATE
+      required: false
+      label:
+        zh: 操作模式
+        en: Operation Mode
+      description:
+        zh: 操作类型，可选 UPDATE 行锁争抢 / INSERT 主键冲突
+        en: Operation type, either UPDATE for lock contention or INSERT for key conflicts
+    duration:
+      type: int
+      unit: s
+      default: 60
+      required: false
+      label:
+        zh: 持续时间
+        en: Duration
+  injection:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} txn duplicate_txn
+      -sessions {{sessions|50}} -duration {{duration|60}} -mode {{mode|UPDATE}}
+      -url {{dbUrl}} -user {{user}} -password {{password}}
+
+# ------------------------------------------------------------
+# 死锁检测风暴：长事务锚点 + 交叉乱序加锁，诱导死锁检测器过载（无 check 子命令）
+# ------------------------------------------------------------
+faultinject.fault.txn.deadlock_storm:
+  name:
+    zh: 死锁检测风暴
+    en: Deadlock Storm
+  description:
+    zh: 通过长事务锚点和交叉乱序加锁，诱导死锁检测器过载
+    en: Overloads the deadlock detector with long-transaction anchors and interleaved lock requests
+  category: database
+  autoRecovery: 1
+  defaultDuration: 60
+  asyncInjection: true
+  params:
+    table:
+      type: string
+      default: bmsql_stock
+      required: false
+      label:
+        zh: 目标表
+        en: Target Table
+      description:
+        zh: 制造交叉冲突的目标表名
+        en: Target table used to create interleaved conflicts
+    anchors:
+      type: int
+      default: 2
+      required: false
+      label:
+        zh: 锚定事务数
+        en: Anchor Transactions
+      description:
+        zh: 长时间持有锁的锚点事务数
+        en: Number of long-running anchor transactions holding locks
+    anchor-rows:
+      type: int
+      default: 20
+      required: false
+      label:
+        zh: 锚点锁定行数
+        en: Anchor Rows
+      description:
+        zh: 每个锚点事务锁定的行数
+        en: Rows locked by each anchor transaction
+    waiters:
+      type: int
+      default: 16
+      required: false
+      label:
+        zh: 交叉等待线程数
+        en: Waiter Threads
+      description:
+        zh: 制造交叉等待的并发线程数
+        en: Concurrent threads creating interleaved waits
+    hot-rows:
+      type: int
+      default: 32
+      required: false
+      label:
+        zh: 热点行数
+        en: Hot Rows
+      description:
+        zh: 用于制造交叉冲突的热点行数（最小为 4）
+        en: Hot rows used for interleaved conflicts, minimum 4
+    step-delay:
+      type: int
+      unit: ms
+      default: 50
+      required: false
+      label:
+        zh: 取锁延迟
+        en: Step Delay
+      description:
+        zh: 两次取锁之间的延迟（毫秒）
+        en: Delay between two lock acquisitions in milliseconds
+    statement-timeout:
+      type: int
+      unit: s
+      default: 5
+      required: false
+      label:
+        zh: 语句超时
+        en: Statement Timeout
+      description:
+        zh: 单条语句的超时秒数
+        en: Per-statement timeout in seconds
+    duration:
+      type: int
+      unit: s
+      default: 60
+      required: false
+      label:
+        zh: 持续时间
+        en: Duration
+  injection:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} txn deadlock_storm
+      -duration {{duration|60|1000}} -table {{table|bmsql_stock}} -anchors {{anchors|2}}
+      -anchor-rows {{anchor-rows|20}} -waiters {{waiters|16}} -hot-rows {{hot-rows|32}}
+      -step-delay {{step-delay|50}} -statement-timeout {{statement-timeout|5}}
+      -url {{dbUrl}} -user {{user}} -password {{password}}
+
+# ------------------------------------------------------------
+# Prepared/XA 事务积压：并发 prepare 挤兑二阶段提交事务上限（无 check 子命令）
+# ⚠ 本 case 的 -duration 单位是「秒」，模板不加 ×1000
+# ------------------------------------------------------------
+faultinject.fault.txn.max_prepared:
+  name:
+    zh: Prepared事务积压
+    en: Max Prepared Transaction
+  description:
+    zh: 并发触发 Prepared Transaction，挤兑二阶段提交事务上限
+    en: Concurrently prepares transactions to exhaust the two-phase commit limit
+  category: database
+  autoRecovery: 1
+  defaultDuration: 60
+  asyncInjection: true
+  params:
+    count:
+      type: int
+      default: 201
+      required: false
+      label:
+        zh: 目标事务数
+        en: Target Count
+      description:
+        zh: 目标 prepared 事务数，默认取系统上限 + 1
+        en: Target number of prepared transactions, defaults to the system limit plus one
+    concurrency:
+      type: int
+      default: 50
+      required: false
+      label:
+        zh: 并发数
+        en: Concurrency
+      description:
+        zh: 并发准备事务的线程数
+        en: Threads preparing transactions concurrently
+    duration:
+      type: int
+      unit: s
+      default: 60
+      required: false
+      label:
+        zh: 持续时间
+        en: Duration
+  injection:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} txn max_prepared
+      -count {{count|201}} -duration {{duration|60}} -concurrency {{concurrency|50}}
+      -url {{dbUrl}} -user {{user}} -password {{password}}
+
+
+# ============================================================
+# 五、存储引擎与日志（storage / buffer / log）
+# ============================================================
+
+# ------------------------------------------------------------
+# MVCC 膨胀：快照锚点钉住 xmin 地平线 + 高频更新制造版本膨胀（无 check 子命令）
+# ------------------------------------------------------------
+faultinject.fault.storage.mvcc_bloat:
+  name:
+    zh: MVCC膨胀注入
+    en: MVCC Bloat
+  description:
+    zh: 通过快照锚点钉住 xmin 地平线，高频更新制造版本膨胀
+    en: Pins the xmin horizon with snapshot anchors and bloats versions through frequent updates
+  category: database
+  autoRecovery: 1
+  defaultDuration: 120
+  asyncInjection: true
+  params:
+    anchors:
+      type: int
+      default: 1
+      required: false
+      label:
+        zh: 锚定事务数
+        en: Snapshot Anchors
+      description:
+        zh: 钉住 xmin 地平线的锚点事务数
+        en: Anchor transactions that pin the xmin horizon
+    mutators:
+      type: int
+      default: 8
+      required: false
+      label:
+        zh: 写入线程数
+        en: Mutator Threads
+      description:
+        zh: 高频更新热点表的并发线程数
+        en: Threads performing frequent updates on hot tables
+    rows:
+      type: int
+      default: 20000
+      required: false
+      label:
+        zh: 初始化行数
+        en: Initial Rows
+      description:
+        zh: 沙盒表初始化行数
+        en: Rows initialized in the sandbox table
+    payload-kb:
+      type: int
+      unit: KB
+      default: 2
+      required: false
+      label:
+        zh: 行载荷大小
+        en: Payload Size
+      description:
+        zh: 每行载荷大小（KB）
+        en: Payload size per row in KB
+    duration:
+      type: int
+      unit: s
+      default: 120
+      required: false
+      label:
+        zh: 持续时间
+        en: Duration
+  injection:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} storage mvcc_bloat
+      -duration {{duration|120|1000}} -anchors {{anchors|1}} -mutators {{mutators|8}}
+      -rows {{rows|20000}} -payload-kb {{payload-kb|2}}
+      -url {{dbUrl}} -user {{user}} -password {{password}}
+
+# ------------------------------------------------------------
+# 大对象缓冲挤压：高频插入超大 BLOB 抢占 Buffer Pool（无 check 子命令）
+# ------------------------------------------------------------
+faultinject.fault.buffer.memory_pressure:
+  name:
+    zh: 大对象缓冲挤压
+    en: Buffer Memory Pressure
+  description:
+    zh: 通过高频插入超大 BLOB 数据抢占 Buffer Pool 资源
+    en: Floods the buffer pool with large BLOB inserts to create memory pressure
+  category: database
+  autoRecovery: 1
+  defaultDuration: 60
+  asyncInjection: true
+  params:
+    batch:
+      type: int
+      unit: MB
+      default: 100
+      required: false
+      label:
+        zh: 批次大小
+        en: Batch Size
+      description:
+        zh: 单次插入数据大小（MB）
+        en: Insert batch size in megabytes
+    threads:
+      type: int
+      default: 4
+      required: false
+      label:
+        zh: 并发线程数
+        en: Concurrent Threads
+      description:
+        zh: 并发写入大对象的线程数
+        en: Threads writing large objects concurrently
+    duration:
+      type: int
+      unit: s
+      default: 60
+      required: false
+      label:
+        zh: 持续时间
+        en: Duration
+  injection:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} buffer memory_pressure
+      -duration {{duration|60|1000}} -batch {{batch|100}} -threads {{threads|4}}
+      -url {{dbUrl}} -user {{user}} -password {{password}}
+
+# ------------------------------------------------------------
+# 海量事务回滚：高频回滚放大 Undo/Redo/WAL 日志压力
+# 自检：check massive_rollback（xact_rollback 两次采样增量）
+# rollback-rate 是百分数（80），模板经派生上下文变量 rollbackRate 换算为小数（0.8）
+# ------------------------------------------------------------
+faultinject.fault.transaction.massive.rollback:
+  name:
+    zh: 海量事务回滚
+    en: Massive Transaction Rollback Storm
+  description:
+    zh: 并发大量插入并按概率回滚，放大 Undo/Redo 与页面换出压力
+    en: Concurrently inserts rows and rolls back at a configurable rate, amplifying undo/redo and page-migration pressure
+  category: database
+  autoRecovery: 1
+  defaultDuration: 60
+  asyncInjection: true
+  params:
+    threads:
+      type: int
+      default: 16
+      required: true
+      label:
+        zh: 并发线程数
+        en: Concurrent Threads
+      description:
+        zh: 并发执行并回滚事务的线程数
+        en: Threads running concurrent transactions and rollbacks
+    rollback-rate:
+      type: int
+      unit: '%'
+      default: 80
+      required: false
+      label:
+        zh: 回滚比例
+        en: Rollback Rate
+      description:
+        zh: 事务回滚概率的百分数，自动除以 100 传给 DBChaos
+        en: Rollback probability in percent, automatically divided by 100 for DBChaos
+    duration:
+      type: int
+      unit: s
+      default: 60
+      required: false
+      label:
+        zh: 持续时间
+        en: Duration
+  injection:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} log massive_rollback
+      -duration {{duration|60|1000}} -threads {{threads|16}} -rate {{rollbackRate|0.8}}
+      -url {{dbUrl}} -user {{user}} -password {{password}}
+  check:
+    command: >-
+      java -jar {{DBCHAOS_JAR}} --db {{dbType}} check massive_rollback
+      -window-ms 2000 -min-delta 1
+      -url {{dbUrl}} -user {{user}} -password {{password}}

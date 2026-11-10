@@ -1,0 +1,65 @@
+/* src/components/SelectedRecordsList/SelectedRecordsList.module.css */
+
+.container {
+  margin: 0;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.list {
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.list::-webkit-scrollbar {
+  height: 6px;
+}
+
+.list::-webkit-scrollbar-thumb {
+  background-color: #ccc;
+  border-radius: 3px;
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, #f7fbff 0%, #eef5ff 100%);
+  border: 1px solid rgba(59, 130, 246, 0.16);
+  border-radius: 12px;
+  font-size: 14px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: 0 4px 18px rgba(37, 99, 235, 0.08);
+}
+
+.removeBtn {
+  width: 28px;
+  height: 28px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #ff4d4f;
+  background: none;
+  border: 2px solid #ff4d4f;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  line-height: 1;
+}
+
+.removeBtn:hover {
+  background-color: #ff4d4f;
+  color: #fff;
+}

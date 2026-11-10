@@ -1,0 +1,435 @@
+<testSuites>
+    <testSuite name="base-test-suite1">
+        <case id="1">
+            <description>CPU Overload</description>
+            <planning>120</planning>
+            <during>60</during>
+        </case>
+        <case id="2">
+            <description>Disk Full</description>
+            <planning>300</planning>
+            <during>60</during>
+        </case>
+        <case id="3">
+            <description>Memory Full</description>
+            <planning>480</planning>
+            <during>60</during>
+        </case>
+        <case id="4">
+            <description>Network Loss 10%</description>
+            <planning>660</planning>
+            <during>60</during>
+        </case>
+        <case id="5">
+            <description>Network Latency 100ms</description>
+            <planning>840</planning>
+            <during>60</during>
+        </case>
+        <case id="6">
+            <description>Network Loss 30%</description>
+            <planning>1020</planning>
+            <during>60</during>
+        </case>
+        <case id="7">
+            <description>Network Latency 300ms</description>
+            <planning>1200</planning>
+            <during>60</during>
+        </case>
+        <case id="8">
+            <description>I/O Read High Payload</description>
+            <planning>1380</planning>
+            <during>60</during>
+        </case>
+        <case id="9">
+            <description>I/O Write High Payload</description>
+            <planning>1560</planning>
+            <during>60</during>
+        </case>
+        <case id="10">
+            <description>I/O Read/Write High Payload</description>
+            <planning>1740</planning>
+            <during>60</during>
+        </case>
+        <case id="11">
+            <description>Gaussdb Process Hang</description>
+            <planning>1920</planning>
+            <during>60</during>
+        </case>
+        <case id="12">
+            <description>Gaussdb Process Shutdown</description>
+            <planning>2100</planning>
+            <during>60</during>
+        </case>
+        <case id="13">
+            <description>CMS Process Hang</description>
+            <planning>2280</planning>
+            <during>60</during>
+        </case>
+        <case id="14">
+            <description>CMS Process Shutdown</description>
+            <planning>2460</planning>
+            <during>60</during>
+        </case>
+        <case id="15">
+            <description>GaussDB process exit</description>
+            <planning>2640</planning>
+            <during>60</during>
+        </case>
+        <case id="16">
+            <description>CMS process exit</description>
+            <planning>2820</planning>
+            <during>60</during>
+        </case>
+        <case id="17">
+            <description>walwriter thread Shutdown</description>
+            <planning>3000</planning>
+            <during>60</during>
+        </case>
+        <case id="18">
+            <description>walwriter thread hang</description>
+            <planning>3180</planning>
+            <during>60</during>
+        </case>
+        <case id="19">
+            <description>pagewriter thread Shutdown</description>
+            <planning>3360</planning>
+            <during>60</during>
+        </case>
+        <case id="20">
+            <description>pagewriter thread hang</description>
+            <planning>3540</planning>
+            <during>60</during>
+        </case>
+        <case id="21">
+            <description>table data file move</description>
+            <planning>3720</planning>
+            <during>60</during>
+        </case>
+        <case id="22">
+            <description>index data file move</description>
+            <planning>3900</planning>
+            <during>60</during>
+        </case>
+        <case id="23">
+            <description>pg_control move</description>
+            <planning>4080</planning>
+            <during>60</during>
+        </case>
+        <case id="24">
+            <description>gaussdb.conf move</description>
+            <planning>4260</planning>
+            <during>60</during>
+        </case>
+        <case id="25">
+            <description>xlog move</description>
+            <planning>4440</planning>
+            <during>60</during>
+        </case>
+        <case id="26">
+            <description>table data file readonly</description>
+            <planning>4620</planning>
+            <during>60</during>
+        </case>
+        <case id="27">
+            <description>index data file readonly</description>
+            <planning>4800</planning>
+            <during>60</during>
+        </case>
+        <case id="28">
+            <description>pg_control readonly</description>
+            <planning>4980</planning>
+            <during>60</during>
+        </case>
+        <case id="29">
+            <description>gaussdb.conf readonly</description>
+            <planning>5160</planning>
+            <during>60</during>
+        </case>
+        <case id="30">
+            <description>pg_xlog readonly</description>
+            <planning>5340</planning>
+            <during>60</during>
+        </case>
+        <case id="31">
+            <description>time travel</description>
+            <planning>5520</planning>
+            <during>60</during>
+        </case>
+        <case id="32">
+            <description>OS reboot</description>
+            <planning>5700</planning>
+            <during>60</during>
+        </case>
+    </testSuite>
+
+    <testSuite name="base-test-suite2">
+        <case id="101">
+            <description>Database I/O Saturation</description>
+            <planning>120</planning>
+            <during>60</during>
+        </case>
+        <case id="102">
+            <description>Database Mem Saturation</description>
+            <planning>300</planning>
+            <during>60</during>
+        </case>
+        <case id="103">
+            <description>Database CPU Saturation</description>
+            <planning>480</planning>
+            <during>60</during>
+        </case>
+        <case id="105">
+            <description>Procedure Stack Overflow</description>
+            <planning>660</planning>
+            <during>60</during>
+        </case>
+        <case id="106">
+            <description>Function Stack Overflow</description>
+            <planning>840</planning>
+            <during>60</during>
+        </case>
+        <case id="107">
+            <description>Transaction Stack Overflow</description>
+            <planning>1020</planning>
+            <during>60</during>
+        </case>
+        <case id="108">
+            <description>Recursive Stack Overflow</description>
+            <planning>1200</planning>
+            <during>60</during>
+        </case>
+        <case id="109">
+            <description>Massive Transaction Rollback Storm</description>
+            <planning>1380</planning>
+            <during>60</during>
+        </case>
+        <case id="110">
+            <description>max_prepared_transaction Limit Exceeded</description>
+            <planning>1560</planning>
+            <during>60</during>
+        </case>
+        <case id="111">
+            <description>Uncommitted Transaction</description>
+            <planning>1740</planning>
+            <during>60</during>
+        </case>
+        <case id="112">
+            <description>Re-execution Transaction</description>
+            <planning>1920</planning>
+            <during>60</during>
+        </case>
+        <case id="113">
+            <description>Database Connection Storm</description>
+            <planning>2100</planning>
+            <during>60</during>
+        </case>
+        <case id="114">
+            <description>Database Connection Exhaustion</description>
+            <planning>2280</planning>
+            <during>60</during>
+        </case>
+        <case id="115">
+            <description>Database Active Thread Pool Saturation</description>
+            <planning>2460</planning>
+            <during>60</during>
+        </case>
+    </testSuite>
+
+    <!-- ============================================ -->
+    <!-- 自动时序模式测试套件（Auto-Timing Mode）        -->
+    <!-- ============================================ -->
+
+    <!-- 测试套件1：基础自动注入测试 -->
+    <testSuite name="auto-timing-basic-test" mode="auto-timing">
+        <case id="1">
+            <description>CPU Overload </description>
+            <during>30</during>
+        </case>
+        <case id="2">
+            <description>Disk Full </description>
+            <during>30</during>
+        </case>
+        <case id="3">
+            <description>Memory Full </description>
+            <during>30</during>
+        </case>
+    </testSuite>
+
+    <!-- 测试套件2：网络故障自动注入测试 -->
+    <testSuite name="auto-timing-network-test" mode="auto-timing">
+        <case id="4">
+            <description>Network Loss 10% - Auto Timing</description>
+            <during>45</during>
+        </case>
+        <case id="5">
+            <description>Network Latency 100ms - Auto Timing</description>
+            <during>45</during>
+        </case>
+        <case id="6">
+            <description>Network Loss 30% - Auto Timing</description>
+            <during>45</during>
+        </case>
+        <case id="7">
+            <description>Network Latency 300ms - Auto Timing</description>
+            <during>45</during>
+        </case>
+    </testSuite>
+
+    <!-- 测试套件3：I/O故障自动注入测试 -->
+    <testSuite name="auto-timing-io-test" mode="auto-timing">
+        <case id="8">
+            <description>I/O Read High Payload - Auto Timing</description>
+            <during>60</during>
+        </case>
+        <case id="9">
+            <description>I/O Write High Payload - Auto Timing</description>
+            <during>60</during>
+        </case>
+        <case id="10">
+            <description>I/O Read/Write High Payload - Auto Timing</description>
+            <during>60</during>
+        </case>
+    </testSuite>
+
+    <!-- 测试套件4：进程级故障自动注入测试 -->
+    <testSuite name="auto-timing-process-test" mode="auto-timing">
+        <case id="11">
+            <description>Gaussdb Process Hang - Auto Timing</description>
+            <during>30</during>
+        </case>
+        <case id="12">
+            <description>Gaussdb Process Shutdown - Auto Timing</description>
+            <during>30</during>
+        </case>
+        <case id="13">
+            <description>CMS Process Hang - Auto Timing</description>
+            <during>30</during>
+        </case>
+        <case id="14">
+            <description>CMS Process Shutdown - Auto Timing</description>
+            <during>30</during>
+        </case>
+    </testSuite>
+
+    <!-- 测试套件5：文件故障自动注入测试 -->
+    <testSuite name="auto-timing-file-test" mode="auto-timing">
+        <case id="21">
+            <description>Table Data File Move - Auto Timing</description>
+            <during>45</during>
+        </case>
+        <case id="22">
+            <description>Index Data File Move - Auto Timing</description>
+            <during>45</during>
+        </case>
+        <case id="26">
+            <description>Table Data File Readonly - Auto Timing</description>
+            <during>45</during>
+        </case>
+        <case id="27">
+            <description>Index Data File Readonly - Auto Timing</description>
+            <during>45</during>
+        </case>
+    </testSuite>
+
+    <!-- 测试套件6：数据库内部故障自动注入测试（Java Faults） -->
+    <testSuite name="auto-timing-db-internal-test" mode="auto-timing">
+        <case id="101">
+            <description>Database I/O Saturation - Auto Timing</description>
+            <during>60</during>
+        </case>
+        <case id="102">
+            <description>Database Mem Saturation - Auto Timing</description>
+            <during>60</during>
+        </case>
+        <case id="103">
+            <description>Database CPU Saturation - Auto Timing</description>
+            <during>60</during>
+        </case>
+        <case id="113">
+            <description>Database Connection Storm - Auto Timing</description>
+            <during>45</during>
+        </case>
+        <case id="114">
+            <description>Database Connection Limit Exceeded - Auto Timing</description>
+            <during>45</during>
+        </case>
+    </testSuite>
+
+    <!-- 测试套件7：事务故障自动注入测试 -->
+    <testSuite name="auto-timing-transaction-test" mode="auto-timing">
+        <case id="109">
+            <description>Massive Transaction Rollback Storm - Auto Timing</description>
+            <during>60</during>
+        </case>
+        <case id="110">
+            <description>Max Prepared Transaction Limit Exceeded - Auto Timing</description>
+            <during>60</during>
+        </case>
+        <case id="111">
+            <description>Uncommitted Transaction - Auto Timing</description>
+            <during>60</during>
+        </case>
+        <case id="112">
+            <description>Re-execution Transaction - Auto Timing</description>
+            <during>60</during>
+        </case>
+    </testSuite>
+
+    <!-- 测试套件8：综合自动注入测试（混合多种故障类型） -->
+    <testSuite name="auto-timing-comprehensive-test" mode="auto-timing">
+        <case id="1">
+            <description>CPU Overload - Comprehensive Test</description>
+            <during>30</during>
+        </case>
+        <case id="4">
+            <description>Network Loss 10% - Comprehensive Test</description>
+            <during>30</during>
+        </case>
+        <case id="8">
+            <description>I/O Read High Payload - Comprehensive Test</description>
+            <during>30</during>
+        </case>
+        <case id="11">
+            <description>Gaussdb Process Hang - Comprehensive Test</description>
+            <during>30</during>
+        </case>
+        <case id="101">
+            <description>Database I/O Saturation - Comprehensive Test</description>
+            <during>30</during>
+        </case>
+    </testSuite>
+
+    <!-- 测试套件9：长持续时间自动注入测试 -->
+    <testSuite name="auto-timing-long-duration-test" mode="auto-timing">
+        <case id="1">
+            <description>CPU Overload - Long Duration</description>
+            <during>180</during>
+        </case>
+        <case id="3">
+            <description>Memory Full - Long Duration</description>
+            <during>180</during>
+        </case>
+    </testSuite>
+
+    <!-- 测试套件10：短持续时间快速测试 -->
+    <testSuite name="auto-timing-quick-test" mode="auto-timing">
+        <case id="1">
+            <description>CPU Overload - Quick Test</description>
+            <during>10</during>
+        </case>
+        <case id="2">
+            <description>Disk Full - Quick Test</description>
+            <during>10</during>
+        </case>
+        <case id="3">
+            <description>Memory Full - Quick Test</description>
+            <during>10</during>
+        </case>
+        <case id="4">
+            <description>Network Loss 10% - Quick Test</description>
+            <during>10</during>
+        </case>
+    </testSuite>
+</testSuites>
+
+

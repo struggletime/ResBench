@@ -1,0 +1,243 @@
+# ============================================================================
+# 15 个故障 × 每个注入 3 次 = 45 批 —— PostgreSQL × TPC-C
+#
+# 组成（用户指定：cpu/mem/network 全保留；file 去掉 delete 与 append；
+# process 只留挂起、不留 kill；数据库层只留 4 个）：
+#   CPU      1  cpu.load
+#   MEM      1  memory.load
+#   网络     5  loss / delay / reorder / duplicate / corrupt（全保留）
+#   磁盘文件 3  disk.fill + filemove + filechmod（无 delete、无 append）
+#   进程     1  process.stop（SIGSTOP，不是 kill）
+#   数据库   4  connection.surge / connection.limit.exceeded /
+#              transaction.massive.rollback / connection.thread_saturation
+#   ─────────────────────────────────────────────────────────────
+#   合计    15 个故障 × 3 次 = 45 批
+#
+# 每一批只放一个故障；同一个故障连写 3 个**完全相同**的 batch = 一轮之内串行注入
+# 3 次（批间间隔 60s，上一批故障在 60s 内自动恢复，下一次再打上去）。故障顺序：
+#   cpu ×3 → mem ×3 → loss ×3 → delay ×3 → reorder ×3 → duplicate ×3 →
+#   corrupt ×3 → fill ×3 → filemove ×3 → filechmod ×3 → process.stop ×3 →
+#   conn.surge ×3 → thread_saturation ×3 → rollback ×3 → limit.exceeded ×3
+# 每批故障 60s、批间间隔 30s ⇒ 90s 一批；45 批的故障计划终点 4080s，
+# 负载 4100s ≈ 68 分钟（外加建仓/灌数时间）。
+#
+# 不跑：process.kill、disk.fileremoved、disk.fileappend，以及其余数据库层故障
+# （计划翻转 / 爆栈族 / 读放大 / 重复事务 / 死锁风暴 / MVCC 膨胀）。
+#
+# 顺序的理由：
+#   * 资源类（cpu、mem）先跑：它们不写数据、不动文件，跑完只留 CPU/内存曲线；
+#   * 网络类 5 个连在一起：都在宿主机 ens17f0 上做 netem，同一张网卡上反复建/拆
+#     qdisc，中间夹别的故障只会让 qdisc 状态更难解释；
+#   * disk.fill 放在文件类之前：它只占空间、不碰 inode；filemove / filechmod
+#     会动数据目录，放后面；
+#   * process.stop 让 postmaster 与所有 backend 进 T 状态 60 秒，TPS 归零，
+#     放在数据库类之前，前面留网络/磁盘批、后面留连接批，避免污染相邻窗口；
+#   * 数据库 4 个放最后，connection.limit.exceeded 收尾 —— 它占着 800 个连接
+#     60 秒（两个库的 max_connections 都是 500），跑完这一批本轮就结束。
+#
+# ⚠ 强度全部拉到本仓库验证过的最高档（E1「高强度」档），代价必须知道：
+#   * memory.load：容器口径 --mem-percent 90（40GiB 上限 ≈ 36GB）。基线已占 ~57%，
+#     90% 会贴近容器上限，postgres 有被 OOM 的风险；3 连打意味着容器高内存持续
+#     ~3 分钟。E1 归档里 90%/120s×3 跑过，但这是最狠的一档。
+#   * network.package 80%：这是可用的最高档。E1 归档里 80% 已经把 agent 控制通道
+#     一起打瘫（e03 第 3 批 10s 超时）；100% 会让本批连回执都回不来，等于不可验证，
+#     所以不用 100%。
+#   * network.delay 1000ms：在链路上叠 1s 排队时延，引擎侧调用会明显变慢。
+#   * network.unorder 50%/correlation 90：**不是 90%**。仓库实测 reorder 命中率
+#     100% 时反而没有真乱序（2000/2000 命中、delay 0.06ms、乱序 0），30–50% 才
+#     产生真乱序；50% 是仍能出真乱序的最高档，再往上就是空操作。
+#   * disk.fill 100%：把 5.8T 数据盘填满，PG 写 WAL 会失败、可能触发崩溃重启；
+#     chaosblade 到点删除填充文件后自行恢复。3 连打时第 N+1 批正好接在第 N 批
+#     恢复点附近，若上一批还没删干净，这一批会填不出量（回执里能看到）。
+#   * process.stop：60s，是 host.process.stopped 抓取分辨率（约 30s、滞后 40~60s）
+#     的最低要求，再长会盖住下一批的窗口，所以保持 60s。
+#   * connection.surge 400：两个库 max_connections 都是 500，400 条短连接风暴会
+#     把连接使用率顶到高位但不至于把人挡在门外；再高就与 limit.exceeded 重叠。
+#   * connection.limit.exceeded 800 > 500：600 已经越界，800 只是让被拒绝的次数
+#     更多，实际持有数仍由 max_connections 决定。
+#   * connection.thread_saturation concurrent-connections=300：PostgreSQL 没有
+#     thread_pool_attr（那是 openGauss 的），DBChaos 按 64 的基线算，实际占
+#     64+300=364 个常驻会话（≈ max_connections 500 的 73%），每条执行
+#     pg_sleep(60) 并常驻 60 秒。不用 434（→ 498/500）：那样 check 连接和引擎
+#     重连都可能被挤掉；2026-09-03 已有连接类故障把工作负载打死的实证。
+#   * transaction.massive.rollback threads=32 / rollback-rate=100：所有事务都回滚。
+#
+# 文件类故障的路径用 @auto: 哨兵，必须在命令行加 --auto-file-targets，
+# 否则引擎会拿字面量 "@auto:db-dir" 去操作文件，必然失败。
+# ============================================================================
+
+name: matrix-pg-tpcc
+key: matrix45
+batches:
+  # ── 资源类：CPU 满载 ×3 ────────────────────────────────────────────────────
+  # 容器内 fullload：吃满的是 pg_tpcc32 的 32 核 CPU 配额，不会铺满宿主机 160 核。
+  - faults:
+      - nameKey: faultinject.fault.cpu.load
+        params: {duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.cpu.load
+        params: {duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.cpu.load
+        params: {duration: "60"}
+
+  # ── 资源类：内存满载 ×3（容器 cgroup 口径 90%）─────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.memory.load
+        params: {memory-percent: "90", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.memory.load
+        params: {memory-percent: "90", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.memory.load
+        params: {memory-percent: "90", duration: "60"}
+
+  # ── 网络类（宿主机 ens17f0，全部 autoRecovery）：丢包 80% ×3 ────────────────
+  - faults:
+      - nameKey: faultinject.fault.network.package
+        params: {percent: "80", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.package
+        params: {percent: "80", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.package
+        params: {percent: "80", interface: ens17f0, duration: "60"}
+
+  # ── 网络类：延迟 1000ms ×3 ────────────────────────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.network.delay
+        params: {time: "1000", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.delay
+        params: {time: "1000", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.delay
+        params: {time: "1000", interface: ens17f0, duration: "60"}
+
+  # ── 网络类：乱序 50%/correlation 90 ×3（90% 是空操作，见顶部说明）──────────
+  - faults:
+      - nameKey: faultinject.fault.network.unorder
+        params: {percent: "50", correlation: "90", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.unorder
+        params: {percent: "50", correlation: "90", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.unorder
+        params: {percent: "50", correlation: "90", interface: ens17f0, duration: "60"}
+
+  # ── 网络类：重复 90% ×3 ───────────────────────────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.network.duplicate
+        params: {percent: "90", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.duplicate
+        params: {percent: "90", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.duplicate
+        params: {percent: "90", interface: ens17f0, duration: "60"}
+
+  # ── 网络类：包损坏 90% ×3 ─────────────────────────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.network.corrupt
+        params: {percent: "90", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.corrupt
+        params: {percent: "90", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.corrupt
+        params: {percent: "90", interface: ens17f0, duration: "60"}
+
+  # ── 磁盘类：数据盘写满 100% ×3 ────────────────────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.disk.fill
+        params: {path: /var/lib/postgresql/data, percent: "100", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.disk.fill
+        params: {path: /var/lib/postgresql/data, percent: "100", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.disk.fill
+        params: {path: /var/lib/postgresql/data, percent: "100", duration: "60"}
+
+  # ── 文件类：库目录整体移走 ×3（@auto: 哨兵）──────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.disk.filemove
+        params: {duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.disk.filemove
+        params: {duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.disk.filemove
+        params: {duration: "60"}
+
+  # ── 文件类：库目录权限 000 ×3（@auto: 哨兵）──────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.disk.filechmod
+        params: {mark: "000", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.disk.filechmod
+        params: {mark: "000", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.disk.filechmod
+        params: {mark: "000", duration: "60"}
+
+  # ── 进程挂起 ×3（SIGSTOP，60s 后由引擎 destroy 发 SIGCONT）─────────────────
+  # PG 配了 container=pg_tpcc32，引擎会把 chaosblade 命令套 docker exec；
+  # 容器内进程名就是 postgres（postmaster + 各 backend 都会被暂停）。
+  # 证据：host.process.stopped 由 0 变正数；TPS 在同一窗口内归零。
+  #
+  # process-cmd 在 --auto-process-target 下会被**现场探测结果**覆盖：脚本按数据库端口
+  # 找到监听进程，取它的 argv[0]（这里就是 postgres），再核对命中范围只落在容器
+  # pg_tpcc32 内。不开自动推荐时才用下面这行手写的值。
+  - faults:
+      - nameKey: faultinject.fault.process.stop
+        params: {process-cmd: postgres, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.process.stop
+        params: {process-cmd: postgres, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.process.stop
+        params: {process-cmd: postgres, duration: "60"}
+
+  # ── 数据库层：连接风暴 400 ×3 ─────────────────────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.connection.surge
+        params: {concurrent-connections: "400", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.connection.surge
+        params: {concurrent-connections: "400", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.connection.surge
+        params: {concurrent-connections: "400", duration: "60"}
+
+  # ── 数据库层：连接线程饱和 ×3（线程池溢出 300 → 364 个常驻活动会话）─────────
+  - faults:
+      - nameKey: faultinject.fault.connection.thread_saturation
+        params: {concurrent-connections: "300", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.connection.thread_saturation
+        params: {concurrent-connections: "300", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.connection.thread_saturation
+        params: {concurrent-connections: "300", duration: "60"}
+
+  # ── 数据库层：大量事务回滚 ×3（32 线程、100% 回滚）────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.transaction.massive.rollback
+        params: {threads: "32", rollback-rate: "100", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.transaction.massive.rollback
+        params: {threads: "32", rollback-rate: "100", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.transaction.massive.rollback
+        params: {threads: "32", rollback-rate: "100", duration: "60"}
+
+  # ── 最后：连接上限打满 ×3（800 > max_connections 500）─────────────────────
+  - faults:
+      - nameKey: faultinject.fault.connection.limit.exceeded
+        params: {attempted-connections: "800", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.connection.limit.exceeded
+        params: {attempted-connections: "800", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.connection.limit.exceeded
+        params: {attempted-connections: "800", duration: "60"}

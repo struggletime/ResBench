@@ -1,0 +1,542 @@
+# ============================================================================
+# E1「事件语义」—— 13 个事件 × 低/高两档 = 26 个编排，全在这一个文件里。
+#
+# 一轮运行 = 一个编排。一轮之内把同一个故障**串行注入 3 次**：写成 3 个 batch 即可
+#   —— 同一个 faults 列表里的故障同时注入，不同 batch 之间串行（上一批结束 +30s 开下一批）。
+# 下面是 30s 的故障：3 次注入落在 t = 60 / 120 / 180 秒，故障计划终点 210s，
+# 负载按计划跑 230s（含 20s 尾巴）—— workloads.yaml 里写的 duration 不参与有故障的轮次。
+# 低/高两档 = 两个 key 不同的编排，只有强度参数不同；顺序先 high 13 轮、再 low 13 轮。
+#
+# 怎么跑（E1 = PostgreSQL + TPC-C，库和负载在另外两份配置里）：
+#   python3 scripts/resbench_batch.py \
+#     --databases scripts/batch-example/databases.yaml \
+#     --workloads scripts/batch-example/workloads.yaml \
+#     --orchestration scripts/batch-example/e1-orch.yaml \
+#     --only-db pg-docker --only-workload tpcc-10c-200
+#   不加 --execute 是 dry-run；单个事件重跑用 --only-orchestration <key>。
+#
+# ⚠ 库配了 container（现在 databases.yaml 里的 pg-docker 就配了），chaosblade 类故障是在
+#   **容器内**执行的，所以下面这些路径/文件/进程名全部按**容器内**的填，不是宿主机的：
+#   A. e07-disk-fill-high 的 path          → docker exec <容器> psql -c "SHOW data_directory"
+#   B. e08/e09/e10-high 的同一个文件路径    → SELECT pg_relation_filepath('bmsql_stock')
+#                                            （必须表建好之后读；重载数据会换文件）
+#   C. e03–e06 的 interface                → **例外，打宿主机网卡**，归档里一直是 ens17f0
+#   D. 三个 /tmp/resbench-e1-*-low.log 要在**容器内** touch；
+#      e11-proc-stop-low 的 process-cmd 换成**容器内**真有的无关进程（宿主机上的 chronyd
+#      容器里通常没有，现写的 chronyd 会注入失败）
+#   E. e02 的 memory-percent 在配了 container 时按**容器 cgroup** 计算（引擎追加
+#      --channel nsexec --ns_target 1）：40GiB 上限的容器配 90 ≈ 36GB、20 ≈ 8GB。
+#      前提是容器内 chaosblade 1.7.4 + 补过 ns_target 的 yaml + /opt/chaosblade/blade-cg，
+#      见 scripts/chaosblade/README.md；不满足时注入会直接报 unknown flag / cgroup deleted，
+#      不会静默退回宿主机口径。宿主部署（不配 container）仍是整机口径。
+#
+# ⚠ e08 file move：引擎给它的恢复命令是坏的（用 create 而非 destroy），也没有 --timeout
+#   兜底，可能把文件永久留在 /tmp。先单独跑 `--only-orchestration e08-file-move-high` 冒烟。
+#
+# e05 network reorder 还有 correlation/time/gap 三个参数，这里不写，用引擎默认值。
+# ============================================================================
+
+# 这个文件的总编排 key：只用来给**本次调用的批次目录**命名
+# （batch-results/<时间戳>_<库key>_<负载key>_e1/），不写就退回文件名 e1-orch。
+# 它和下面每个编排自己的 key 无关，--only-orchestration 仍然按那些 key 匹配。
+name: e1
+
+orchestrations:
+
+  - key: e01-cpu-load-high
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.cpu.load
+            params:
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.cpu.load
+            params:
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.cpu.load
+            params:
+              duration: "30"
+
+  # - key: e01-cpu-load-low
+  #   batches: []          # 低档不注入故障，只跑负载
+
+  - key: e02-memory-load-high
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.memory.load
+            params:
+              memory-percent: "90"
+              duration: "120"
+      - faults:
+          - nameKey: faultinject.fault.memory.load
+            params:
+              memory-percent: "90"
+              duration: "120"
+      - faults:
+          - nameKey: faultinject.fault.memory.load
+            params:
+              memory-percent: "90"
+              duration: "120"
+
+  - key: e02-memory-load-low
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.memory.load
+            params:
+              memory-percent: "20"
+              duration: "120"
+      - faults:
+          - nameKey: faultinject.fault.memory.load
+            params:
+              memory-percent: "20"
+              duration: "120"
+      - faults:
+          - nameKey: faultinject.fault.memory.load
+            params:
+              memory-percent: "20"
+              duration: "120"
+
+  - key: e03-net-loss-high
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.network.package
+            params:
+              percent: "80"
+              interface: "ens17f0"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.network.package
+            params:
+              percent: "80"
+              interface: "ens17f0"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.network.package
+            params:
+              percent: "80"
+              interface: "ens17f0"
+              duration: "30"
+
+  - key: e03-net-loss-low
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.network.package
+            params:
+              percent: "5"
+              interface: "ens17f0"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.network.package
+            params:
+              percent: "5"
+              interface: "ens17f0"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.network.package
+            params:
+              percent: "5"
+              interface: "ens17f0"
+              duration: "30"
+
+  - key: e04-net-delay-high
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.network.delay
+            params:
+              time: "1000"
+              interface: "ens17f0"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.network.delay
+            params:
+              time: "1000"
+              interface: "ens17f0"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.network.delay
+            params:
+              time: "1000"
+              interface: "ens17f0"
+              duration: "30"
+
+  - key: e04-net-delay-low
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.network.delay
+            params:
+              time: "50"
+              interface: "ens17f0"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.network.delay
+            params:
+              time: "50"
+              interface: "ens17f0"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.network.delay
+            params:
+              time: "50"
+              interface: "ens17f0"
+              duration: "30"
+
+  - key: e05-net-reorder-high
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.network.unorder
+            params:
+              percent: "90"
+              interface: "ens17f0"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.network.unorder
+            params:
+              percent: "90"
+              interface: "ens17f0"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.network.unorder
+            params:
+              percent: "90"
+              interface: "ens17f0"
+              duration: "30"
+
+  - key: e05-net-reorder-low
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.network.unorder
+            params:
+              percent: "10"
+              interface: "ens17f0"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.network.unorder
+            params:
+              percent: "10"
+              interface: "ens17f0"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.network.unorder
+            params:
+              percent: "10"
+              interface: "ens17f0"
+              duration: "30"
+
+  - key: e06-net-dup-high
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.network.duplicate
+            params:
+              percent: "90"
+              interface: "ens17f0"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.network.duplicate
+            params:
+              percent: "90"
+              interface: "ens17f0"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.network.duplicate
+            params:
+              percent: "90"
+              interface: "ens17f0"
+              duration: "30"
+
+  - key: e06-net-dup-low
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.network.duplicate
+            params:
+              percent: "10"
+              interface: "ens17f0"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.network.duplicate
+            params:
+              percent: "10"
+              interface: "ens17f0"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.network.duplicate
+            params:
+              percent: "10"
+              interface: "ens17f0"
+              duration: "30"
+
+  - key: e07-disk-fill-high
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.disk.fill
+            params:
+              path: "/var/lib/postgresql/data"
+              percent: "100"
+              duration: "120"
+      - faults:
+          - nameKey: faultinject.fault.disk.fill
+            params:
+              path: "/var/lib/postgresql/data"
+              percent: "100"
+              duration: "120"
+      - faults:
+          - nameKey: faultinject.fault.disk.fill
+            params:
+              path: "/var/lib/postgresql/data"
+              percent: "100"
+              duration: "120"
+
+  - key: e07-disk-fill-low
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.disk.fill
+            params:
+              path: "/var/lib/postgresql/data"
+              percent: "20"
+              duration: "120"
+      - faults:
+          - nameKey: faultinject.fault.disk.fill
+            params:
+              path: "/var/lib/postgresql/data"
+              percent: "20"
+              duration: "120"
+      - faults:
+          - nameKey: faultinject.fault.disk.fill
+            params:
+              path: "/var/lib/postgresql/data"
+              percent: "20"
+              duration: "120"
+
+  - key: e08-file-move-high
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.disk.filemove
+            params:
+              src-path: "/var/lib/postgresql/data/base/16384/16385"
+              dst-dir: "/tmp/"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.disk.filemove
+            params:
+              src-path: "/var/lib/postgresql/data/base/16384/16385"
+              dst-dir: "/tmp/"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.disk.filemove
+            params:
+              src-path: "/var/lib/postgresql/data/base/16384/16385"
+              dst-dir: "/tmp/"
+              duration: "30"
+
+  - key: e08-file-move-low
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.disk.filemove
+            params:
+              src-path: "/tmp/resbench-e1-e08-low.log"
+              dst-dir: "/tmp/"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.disk.filemove
+            params:
+              src-path: "/tmp/resbench-e1-e08-low.log"
+              dst-dir: "/tmp/"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.disk.filemove
+            params:
+              src-path: "/tmp/resbench-e1-e08-low.log"
+              dst-dir: "/tmp/"
+              duration: "30"
+
+  # - key: e09-file-delete-high
+  #   batches:
+  #     - faults:
+  #         - nameKey: faultinject.fault.disk.fileremoved
+  #           params:
+  #             file-path: "/var/lib/postgresql/data/base/16384/16385"
+  #             duration: "30"
+  #     - faults:
+  #         - nameKey: faultinject.fault.disk.fileremoved
+  #           params:
+  #             file-path: "/var/lib/postgresql/data/base/16384/16385"
+  #             duration: "30"
+  #     - faults:
+  #         - nameKey: faultinject.fault.disk.fileremoved
+  #           params:
+  #             file-path: "/var/lib/postgresql/data/base/16384/16385"
+  #             duration: "30"
+  #
+  # - key: e09-file-delete-low
+  #   batches:
+  #     - faults:
+  #         - nameKey: faultinject.fault.disk.fileremoved
+  #           params:
+  #             file-path: "/tmp/resbench-e1-e09-low.log"
+  #             duration: "30"
+  #     - faults:
+  #         - nameKey: faultinject.fault.disk.fileremoved
+  #           params:
+  #             file-path: "/tmp/resbench-e1-e09-low.log"
+  #             duration: "30"
+  #     - faults:
+  #         - nameKey: faultinject.fault.disk.fileremoved
+  #           params:
+  #             file-path: "/tmp/resbench-e1-e09-low.log"
+  #             duration: "30"
+
+  - key: e10-file-chmod-high
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.disk.filechmod
+            params:
+              filepath: "/var/lib/postgresql/data/base/16384/16385"
+              mark: "000"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.disk.filechmod
+            params:
+              filepath: "/var/lib/postgresql/data/base/16384/16385"
+              mark: "000"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.disk.filechmod
+            params:
+              filepath: "/var/lib/postgresql/data/base/16384/16385"
+              mark: "000"
+              duration: "30"
+
+  - key: e10-file-chmod-low
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.disk.filechmod
+            params:
+              filepath: "/tmp/resbench-e1-e10-low.log"
+              mark: "600"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.disk.filechmod
+            params:
+              filepath: "/tmp/resbench-e1-e10-low.log"
+              mark: "600"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.disk.filechmod
+            params:
+              filepath: "/tmp/resbench-e1-e10-low.log"
+              mark: "600"
+              duration: "30"
+
+  # - key: e11-proc-stop-high
+  #   batches:
+  #     - faults:
+  #         - nameKey: faultinject.fault.process.stop
+  #           params:
+  #             process-cmd: "postgres"
+  #             duration: "30"
+  #     - faults:
+  #         - nameKey: faultinject.fault.process.stop
+  #           params:
+  #             process-cmd: "postgres"
+  #             duration: "30"
+  #     - faults:
+  #         - nameKey: faultinject.fault.process.stop
+  #           params:
+  #             process-cmd: "postgres"
+  #             duration: "30"
+  #
+  # - key: e11-proc-stop-low
+  #   batches:
+  #     - faults:
+  #         - nameKey: faultinject.fault.process.stop
+  #           params:
+  #             process-cmd: "chronyd"
+  #             duration: "30"
+  #     - faults:
+  #         - nameKey: faultinject.fault.process.stop
+  #           params:
+  #             process-cmd: "chronyd"
+  #             duration: "30"
+  #     - faults:
+  #         - nameKey: faultinject.fault.process.stop
+  #           params:
+  #             process-cmd: "chronyd"
+  #             duration: "30"
+  #
+  - key: e12-conn-surge-high
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.connection.surge
+            params:
+              concurrent-connections: "400"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.connection.surge
+            params:
+              concurrent-connections: "400"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.connection.surge
+            params:
+              concurrent-connections: "400"
+              duration: "30"
+
+  - key: e12-conn-surge-low
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.connection.surge
+            params:
+              concurrent-connections: "50"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.connection.surge
+            params:
+              concurrent-connections: "50"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.connection.surge
+            params:
+              concurrent-connections: "50"
+              duration: "30"
+
+  - key: e13-mass-rollback-high
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.transaction.massive.rollback
+            params:
+              threads: "16"
+              rollback-rate: "80"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.transaction.massive.rollback
+            params:
+              threads: "16"
+              rollback-rate: "80"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.transaction.massive.rollback
+            params:
+              threads: "16"
+              rollback-rate: "80"
+              duration: "30"
+
+  - key: e13-mass-rollback-low
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.transaction.massive.rollback
+            params:
+              threads: "4"
+              rollback-rate: "20"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.transaction.massive.rollback
+            params:
+              threads: "4"
+              rollback-rate: "20"
+              duration: "30"
+      - faults:
+          - nameKey: faultinject.fault.transaction.massive.rollback
+            params:
+              threads: "4"
+              rollback-rate: "20"
+              duration: "30"

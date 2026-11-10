@@ -1,0 +1,1 @@
+```pip install pymser==1.0.18 numpy matplotlib pandas scipy duckdb pyyaml seaborn```

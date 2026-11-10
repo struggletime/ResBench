@@ -1,0 +1,121 @@
+# === IDE & Editor ===
+.vscode/
+.idea/
+*.iws
+*.iml
+*.ipr
+*.swp
+*.sw?
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+/nbproject/private/
+/nbbuild/
+/nbdist/
+/.nb-gradle/
+
+# === Java / Maven ===
+target/
+build/
+*.jar
+*.war
+*.ear
+*.class
+*.log
+*.hprof
+*.pid
+**/logs/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+HELP.md
+coverage/
+!.mvn/wrapper/maven-wrapper.jar
+
+# === Node.js / Frontend ===
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# === Project-specific ===
+.env
+*.db
+*.db-journal
+
+# Backend generated configs & temp files
+backend/resbenchmark/config/generated/
+backend/resbenchmark/tmp/
+backend/resbenchmark/results/
+
+# Frontend static copied to res-manager
+backend/res-manager/src/main/resources/static/
+
+# Agent run log
+backend/agent/agent.log
+
+# Dev tool temp directories
+.codex/
+.agents/
+.claude/
+
+# Automation matrix run outputs & offline verification harness
+runs/
+.verify/
+
+# res-manager monitoring runtime archives
+backend/res-manager/data/
+
+# 运行产物 / 大体积归档（本地保留，不进仓库）
+batch-results/
+valid-results/
+valid-results.zip
+valid-test/
+ResBench++实验列表.xlsx
+
+# 实验数据归档（按组整理后的运行结果 + 自包含 HTML 报告，本地查看，不提交）
+# 生成方式：scripts/export_run_report.py <归档目录> --index
+实验数据/
+
+# 含真实库口令的现场清单：只留在本地，模板见同目录 README
+scripts/matrix-4groups/databases.yaml
+scripts/batch-example/databases.yaml
+
+# 个人材料 / 实验分析文档：只留本地，不进仓库（教程、使用说明仍会提交）
+docs/group-meeting-*
+docs/batch-script-usage.html
+docs/fault-verification-intro.md
+docs/fault-verification-intro.html
+docs/fault-15-table.md
+docs/fault-15-table-archived.md
+docs/fault-monitoring-evidence.md
+docs/matrix-4groups-evidence.md
+docs/why-fault-injection-shows-no-throughput-drop.md
+docs/history-archive-and-query.md
+docs/orchestration-reasonableness-check.md
+docs/fault15-demo/

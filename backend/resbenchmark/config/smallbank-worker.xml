@@ -1,0 +1,30 @@
+<works>
+    <!-- Phase1 -->
+    <work arrival="REGULAR">
+        <time>600</time>
+        <rate>1000000</rate> <!-- interval 1/rate second-->
+        <weights>5,25,20,15,15,20</weights>
+        <testSuite>auto-timing-basic-test</testSuite>
+        <autoTiming>
+            <checkIntervalMs>5001</checkIntervalMs>
+            <maxWaitMs>300000</maxWaitMs>
+            <windowSize>31</windowSize>
+            <cvThreshold>0.08</cvThreshold>
+            <injectTimeoutMs>30000</injectTimeoutMs>
+            <recoverTimeoutMs>30000</recoverTimeoutMs>
+            <dynamicThresholdEnabled>true</dynamicThresholdEnabled>
+            <dynamicBaselineChecks>30</dynamicBaselineChecks>
+            <dynamicThresholdScaleK>1.0</dynamicThresholdScaleK>
+            <dynamicThresholdLowerBound>0.08</dynamicThresholdLowerBound>
+            <dynamicThresholdUpperBound>0.35</dynamicThresholdUpperBound>
+        </autoTiming>
+    </work>
+
+    <!-- Phase2 -->
+<!--    <work arrival="POISSON">-->
+<!--        <time>60</time>-->
+<!--        <rate>1000</rate> &lt;!&ndash; interval 1/rate second&ndash;&gt;-->
+<!--        <weights>15,15,15,25,15,15</weights>-->
+<!--        <testSuite>base-test-suite2</testSuite>-->
+<!--    </work>-->
+</works>

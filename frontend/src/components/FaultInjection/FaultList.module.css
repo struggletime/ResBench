@@ -1,0 +1,137 @@
+/* 容器：横向排列，响应式 */
+.container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 0;
+  background-color: transparent;
+}
+
+/* 单个卡片 */
+.card {
+  position: relative;
+  width: 100%;
+  max-width: 300px;
+  min-width: 220px;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 14px;
+  background-color: white;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
+  cursor: grab;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.card:hover {
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+/* 删除按钮 - 右上角 */
+.deleteBtn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border: 2px solid #ff4d4f;
+  background: none;
+  color: #ff4d4f;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.deleteBtn:hover {
+  background-color: #fff1f0;
+}
+
+/* 拖拽手柄 - 左上角 */
+.dragHandle {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  font-size: 16px;
+  cursor: grab;
+  user-select: none;
+  z-index: 10;
+}
+
+.dragHandle:hover {
+  color: #333;
+}
+
+/* 卡片头部：序号 + 标题 */
+.header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.order {
+  font-size: 14px;
+  font-weight: bold;
+  color: #1890ff;
+  background-color: #e6f7ff;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+  line-height: 1.4;
+  flex: 1;
+}
+
+/* 参数区域 */
+.params {
+  flex: 1;
+  font-size: 13px;
+  color: #666;
+}
+
+.paramLine {
+  margin: 4px 0;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+/* 响应式：不同屏幕宽度调整列数 */
+@media (min-width: 768px) {
+  .card {
+    min-width: 240px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .card {
+    min-width: 260px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .card {
+    min-width: 280px;
+  }
+}

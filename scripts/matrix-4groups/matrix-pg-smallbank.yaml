@@ -1,0 +1,179 @@
+# ============================================================================
+# 15 个故障 × 每个注入 3 次 = 45 批 —— PostgreSQL × smallbank
+#
+# 与 matrix-pg-tpcc.yaml 同构（15 个故障、同顺序、同强度、每个连打 3 次），
+# 只有一处不同：
+#   * 文件类故障的 @auto: 目标由引擎按本轮 smallbank 库的 oid 现查
+#
+# 组成、顺序、参数理由、最高强度的代价（80% 丢包打瘫 agent 通道、乱序 50% 才出真乱序、
+# 磁盘 100% 写满、内存 90% 贴近容器上限）见 matrix-pg-tpcc.yaml 顶部注释。
+# 每批 60s + 批间 30s ⇒ 45 批计划 4080s、负载 4100s ≈ 68 分钟。
+# ============================================================================
+
+name: matrix-pg-smallbank
+key: matrix45
+batches:
+  # ── CPU 满载 ×3 ──────────────────────────────────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.cpu.load
+        params: {duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.cpu.load
+        params: {duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.cpu.load
+        params: {duration: "60"}
+
+  # ── 内存满载 ×3（容器口径 90%）──────────────────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.memory.load
+        params: {memory-percent: "90", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.memory.load
+        params: {memory-percent: "90", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.memory.load
+        params: {memory-percent: "90", duration: "60"}
+
+  # ── 丢包 80% ×3 ─────────────────────────────────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.network.package
+        params: {percent: "80", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.package
+        params: {percent: "80", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.package
+        params: {percent: "80", interface: ens17f0, duration: "60"}
+
+  # ── 延迟 1000ms ×3 ──────────────────────────────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.network.delay
+        params: {time: "1000", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.delay
+        params: {time: "1000", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.delay
+        params: {time: "1000", interface: ens17f0, duration: "60"}
+
+  # ── 乱序 50%/correlation 90 ×3（90% 是空操作）────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.network.unorder
+        params: {percent: "50", correlation: "90", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.unorder
+        params: {percent: "50", correlation: "90", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.unorder
+        params: {percent: "50", correlation: "90", interface: ens17f0, duration: "60"}
+
+  # ── 重复 90% ×3 ─────────────────────────────────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.network.duplicate
+        params: {percent: "90", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.duplicate
+        params: {percent: "90", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.duplicate
+        params: {percent: "90", interface: ens17f0, duration: "60"}
+
+  # ── 包损坏 90% ×3 ───────────────────────────────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.network.corrupt
+        params: {percent: "90", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.corrupt
+        params: {percent: "90", interface: ens17f0, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.network.corrupt
+        params: {percent: "90", interface: ens17f0, duration: "60"}
+
+  # ── 数据盘写满 100% ×3 ──────────────────────────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.disk.fill
+        params: {path: /var/lib/postgresql/data, percent: "100", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.disk.fill
+        params: {path: /var/lib/postgresql/data, percent: "100", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.disk.fill
+        params: {path: /var/lib/postgresql/data, percent: "100", duration: "60"}
+
+  # ── 库目录整体移走 ×3（@auto: 哨兵）──────────────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.disk.filemove
+        params: {duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.disk.filemove
+        params: {duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.disk.filemove
+        params: {duration: "60"}
+
+  # ── 库目录权限 000 ×3（@auto: 哨兵）─────────────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.disk.filechmod
+        params: {mark: "000", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.disk.filechmod
+        params: {mark: "000", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.disk.filechmod
+        params: {mark: "000", duration: "60"}
+
+  # ── 进程挂起 ×3 ─────────────────────────────────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.process.stop
+        params: {process-cmd: postgres, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.process.stop
+        params: {process-cmd: postgres, duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.process.stop
+        params: {process-cmd: postgres, duration: "60"}
+
+  # ── 连接风暴 400 ×3 ─────────────────────────────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.connection.surge
+        params: {concurrent-connections: "400", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.connection.surge
+        params: {concurrent-connections: "400", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.connection.surge
+        params: {concurrent-connections: "400", duration: "60"}
+
+  # ── 连接线程饱和 ×3（线程池溢出 300 → 364 个常驻活动会话）─────────────────
+  - faults:
+      - nameKey: faultinject.fault.connection.thread_saturation
+        params: {concurrent-connections: "300", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.connection.thread_saturation
+        params: {concurrent-connections: "300", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.connection.thread_saturation
+        params: {concurrent-connections: "300", duration: "60"}
+
+  # ── 大量事务回滚 ×3（32 线程、100% 回滚）────────────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.transaction.massive.rollback
+        params: {threads: "32", rollback-rate: "100", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.transaction.massive.rollback
+        params: {threads: "32", rollback-rate: "100", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.transaction.massive.rollback
+        params: {threads: "32", rollback-rate: "100", duration: "60"}
+
+  # ── 连接上限打满 ×3（800 > max_connections 500）──────────────────────────
+  - faults:
+      - nameKey: faultinject.fault.connection.limit.exceeded
+        params: {attempted-connections: "800", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.connection.limit.exceeded
+        params: {attempted-connections: "800", duration: "60"}
+  - faults:
+      - nameKey: faultinject.fault.connection.limit.exceeded
+        params: {attempted-connections: "800", duration: "60"}

@@ -1,0 +1,164 @@
+.wrapper {
+  position: relative;
+  display: inline-block;
+  margin-left: 8px;
+}
+
+.trigger {
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #3b82f6;
+  background: transparent;
+  border: 1px solid #3b82f6;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.trigger:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.trigger:disabled {
+  color: #9ca3af;
+  border-color: #d1d5db;
+  cursor: not-allowed;
+}
+
+.panel {
+  position: absolute;
+  z-index: 1200;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 520px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  font-size: 12px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 4px 8px;
+  color: #6b7280;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.close {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.message {
+  padding: 10px 4px;
+  color: #6b7280;
+}
+
+.error {
+  color: #b91c1c;
+}
+
+.groupTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 4px;
+  font-weight: 600;
+  color: #111827;
+  background: #f9fafb;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.subtitle {
+  font-weight: 400;
+  color: #6b7280;
+}
+
+.childGroup {
+  margin-left: 14px;
+}
+
+.item {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px 8px;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #f3f4f6;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.item:hover {
+  background: #f9fafb;
+  border-color: #e5e7eb;
+}
+
+.itemRecommended {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.itemHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kindTag {
+  flex: none;
+  padding: 1px 5px;
+  font-size: 11px;
+  border-radius: 3px;
+  color: #fff;
+  background: #6b7280;
+}
+
+.kindDirectory {
+  background: #7c3aed;
+}
+
+.kindFile {
+  background: #2563eb;
+}
+
+.label {
+  color: #111827;
+}
+
+.recommended {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.path {
+  margin-top: 2px;
+  font-family: monospace;
+  font-size: 11px;
+  color: #4b5563;
+  word-break: break-all;
+}
+
+.meta {
+  margin-top: 2px;
+  color: #9ca3af;
+}
+
+.note {
+  margin-top: 2px;
+  color: #6b7280;
+  line-height: 1.5;
+}

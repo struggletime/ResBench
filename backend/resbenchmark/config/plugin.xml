@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<plugins>
+    <plugin name="smallbank">com.resbench.benchmarks.smallbank.SmallBankBenchmark</plugin>
+    <plugin name="tpcc">com.resbench.benchmarks.tpcc.TPCCBenchmark</plugin>
+</plugins>

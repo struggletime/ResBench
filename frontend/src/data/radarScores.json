@@ -1,0 +1,10 @@
+[
+  { "metric": "throughput", "value": 81 },
+  { "metric": "latency", "value": 60 },
+  { "metric": "stability", "value": 70 },
+  { "metric": "resistance", "value": 50 },
+  { "metric": "recovery", "value": 40 },
+  { "metric": "adaptability", "value": 90 },
+  { "metric": "deviation", "value": 75 },
+  { "metric": "disturbance", "value": 85 }
+]

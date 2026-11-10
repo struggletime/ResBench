@@ -1,0 +1,42 @@
+# ============================================================================
+# 故障编排 —— 一个文件可以放多个编排（顶层写 orchestrations: [...]）；
+#            也可以像本文件这样只放一个，命令行用 --orchestration 传进来
+#
+# key 就是这个编排的名字：参与结果目录命名（<库key>__<负载key>__<key>），
+# 也会打进标签和 CSV。不写 key 的话退化成用文件名。
+#
+# batches 是「批次列表」：
+#   同一个 faults: 列表里的故障 **同时** 注入
+#   不同批之间 **串行**（引擎固定等上一批结束再 +30s 开下一批）
+#
+# 每一批可选一个 duration，作用是把批内所有故障的持续时间统一覆盖成这个值
+# （对应前端组合模式里的「组级 duration」）；不写就各用各的 params.duration。
+#
+# 故障时刻由引擎排：第一批 t=60s，往后每批 = 上一批结束 + 30s。
+# 脚本会把这个时刻表算出来打印给你看，并据此决定负载要跑多久。
+# ============================================================================
+
+# 这个文件的总编排 key —— 只用来给本次调用的批次目录命名
+# （batch-results/<时间戳>_<库key>_<负载key>_combo-demo/），不写就退回文件名。
+# 「key: + batches:」这种单编排写法里，name 和 key 是并排的两个顶层键。
+name: combo-demo
+
+key: combo-conn-planflip
+
+batches:
+  - duration: "60"
+    faults:
+      # 组合故障：这两个同时注入
+      - nameKey: faultinject.fault.connection.surge
+        params:
+          concurrent-connections: "200"
+      - nameKey: faultinject.fault.sql.plan_flip
+        params:
+          threads: "16"
+
+  - faults:
+      # 第一批结束后 +30s，单独注入
+      - nameKey: faultinject.fault.transaction.massive.rollback
+        params:
+          threads: "16"
+          rollback-rate: "80"

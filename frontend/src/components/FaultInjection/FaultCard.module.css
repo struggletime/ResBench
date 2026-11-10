@@ -1,0 +1,636 @@
+.pageShell {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.selectionCard,
+.listCard,
+.paramsCard,
+.actionsCard,
+.chartCard {
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+}
+
+.selectionCard {
+  padding: 20px;
+}
+
+.cardArea {
+  margin-bottom: 16px;
+}
+
+.listCard,
+.paramsCard,
+.actionsCard {
+  padding: 20px;
+}
+
+.chartCard {
+  padding: 20px 20px 8px;
+}
+
+/* 容器 */
+.cardContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 0;
+  background-color: transparent;
+}
+
+/* 单个卡片 */
+.card {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 14px;
+  background-color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
+  font-size: 14px;
+  color: #333;
+  min-height: 36px;
+  flex: 1 1 calc(33% - 12px);
+  max-width: calc(33% - 12px);
+}
+
+/* 选中状态 */
+.card.active {
+  background: linear-gradient(180deg, #eff6ff 0%, #e6f0ff 100%);
+  border-color: #93c5fd;
+  color: #1890ff;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
+}
+
+/* 图标区域：基础圆形 */
+.icon {
+  width: 16px;
+  height: 16px;
+  border: 1px solid #ccc;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10px;
+  flex-shrink: 0;
+  background: white;
+}
+
+/* 未选中：空心圆 */
+.dot {
+  width: 10px;
+  height: 10px;
+  border: 1px solid #ccc;
+  border-radius: 50%;
+  background: transparent;
+}
+
+/* 选中：实心蓝圆 */
+.iconActive {
+  border-color: #1890ff;
+  background-color: #1890ff;
+}
+
+/* 选中时的数字：白色、居中、清晰 */
+.number {
+  font-size: 10px;
+  font-weight: bold;
+  color: white;
+  line-height: 1;
+  text-align: center;
+}
+
+/* 文本内容 */
+.text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 0;
+}
+
+/* 空分类提示（yaml 目录未配置该分类故障时展示） */
+.emptyCategory {
+  width: 100%;
+  padding: 28px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: #94a3b8;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+}
+
+/* 无自检标记（v2.1）：仅提示，不阻断 */
+.noCheckTag {
+  flex-shrink: 0;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+}
+/* 添加按钮：独立成行，右对齐 */
+.addButton {
+  margin-top: 18px;
+  text-align: right;
+  width: 100%;
+}
+
+.addButton button {
+  background-color: #1890ff;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.14);
+}
+
+.addButton button:hover {
+  background-color: #40a9ff;
+  transform: translateY(-1px);
+}
+
+.addButton button:active {
+  background-color: #096dd9;
+}
+.paramContainer {
+  padding: 0;
+  background-color: transparent;
+  border-radius: 0;
+  margin-top: 0;
+}
+
+/* 每个参数组 */
+.paramGroup {
+  margin-bottom: 24px;
+}
+
+/* 参数标签 */
+.label {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  background-color: #f0f9ff;
+  color: #0369a1;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 9px;
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  margin-bottom: 8px;
+  line-height: 1.2;
+  transition: all 0.2s ease;
+}
+
+.label:hover {
+  background-color: #e0f2fe;
+  border-color: rgba(14, 165, 233, 0.4);
+}
+
+/* 必填标记 */
+.required {
+  color: #ff4d4f;
+  margin-right: 4px;
+}
+
+/* 参数描述 */
+.description {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+/* 输入框包装器 */
+.inputWrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 输入框 */
+.input {
+  padding: 8px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 9px; /* 相应调整圆角 */
+  font-size: 13px; /* 统一字号 */
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  flex-basis: 200px;
+  background: #f8fafc;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
+}
+.requiredInput {
+  border-color: #ff4d4f !important;
+}
+
+.requiredInput:focus {
+  box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.1) !important;
+}
+
+/* 单位 */
+.unit {
+  font-size: 16px;
+  color: #666;
+  min-width: 32px;
+  text-align: left;
+}
+/* 按钮容器：相对定位，用于绝对定位按钮 */
+.testButtonsContainer {
+  display: flex;
+  justify-content: flex-end;
+  position: relative;
+  padding: 0;
+  margin-top: 0;
+  background-color: transparent;
+  border-top: none;
+  gap: 10px;
+}
+
+/* 开始测试按钮：蓝色 */
+.startButton {
+  background-color: #1890ff;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.startButton:hover {
+  background-color: #40a9ff;
+  transform: translateY(-1px);
+}
+
+.startButton:active {
+  background-color: #096dd9;
+}
+
+/* 中止测试按钮：红色 */
+.stopButton {
+  background-color: #ff4d4f;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.stopButton:hover {
+  background-color: #ff7a7a;
+  transform: translateY(-1px);
+}
+
+.stopButton:active {
+  background-color: #d93636;
+}
+
+.startButton:disabled,
+.stopButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.startButton:disabled:hover,
+.stopButton:disabled:hover {
+  transform: none;
+}
+
+.startButton:disabled:hover {
+  background-color: #1890ff;
+}
+
+.stopButton:disabled:hover {
+  background-color: #ff4d4f;
+}
+
+/* 校验编排按钮：描边蓝色，与开始/停止按钮区分 */
+.checkButton {
+  background-color: transparent;
+  color: #1890ff;
+  border: 1px solid #1890ff;
+  border-radius: 12px;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.checkButton:hover {
+  background-color: #e6f4ff;
+  transform: translateY(-1px);
+}
+
+.checkButton:active {
+  background-color: #bae0ff;
+}
+
+.checkButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.checkButton:disabled:hover {
+  background-color: transparent;
+  transform: none;
+}
+
+/* 编排校验结果面板 */
+.checkResult {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.checkResultPass {
+  background-color: #f6ffed;
+  border-color: #b7eb8f;
+  color: #237804;
+}
+
+.checkResultFail {
+  background-color: #fff2f0;
+  border-color: #ffccc7;
+  color: #a8071a;
+}
+
+.checkResultTitle {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.checkResultList {
+  margin: 8px 0 0 18px;
+  padding: 0;
+}
+
+/* Toast 样式 */
+.toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  border-radius: 8px;
+  color: white;
+  font-weight: 500;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: fadeInOut 3s ease-in-out;
+}
+
+.success {
+  background-color: #34c759;
+}
+
+.error {
+  background-color: #ff3b30;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+  10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  90% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+}
+
+/* 模式选择区 */
+.modePanel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 0;
+  padding: 16px 18px;
+  border: 1px solid rgba(147, 197, 253, 0.32);
+  border-radius: 14px;
+  background: linear-gradient(90deg, #f7fbff 0%, #f1f7ff 100%);
+}
+
+.modePanelGroup {
+  border-color: #bfe3c8;
+  background: linear-gradient(90deg, #f5fff7 0%, #effaf2 100%);
+}
+
+.modePanelInfo {
+  min-width: 0;
+}
+
+.modePanelTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f2a37;
+  margin-bottom: 4px;
+}
+
+.modePanelDescription {
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.modePanelButtons {
+  display: inline-flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.modeButton,
+.modeButtonActive {
+  border: 1px solid #c9d7f2;
+  background: #ffffff;
+  color: #2f3d4a;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modeButton:hover {
+  border-color: #7da8e6;
+  color: #1d4f91;
+}
+
+.modeButtonActive {
+  border-color: #1677ff;
+  background: #1677ff;
+  color: #ffffff;
+}
+
+.modeSwitchContainer {
+  margin-bottom: 8px;
+}
+
+/* 组合控制区域 */
+.groupControlsPanel {
+  margin-top: 18px;
+  margin-bottom: 0;
+  padding: 16px;
+  border: 1px solid rgba(134, 239, 172, 0.4);
+  border-radius: 14px;
+  background: #f7fcf8;
+}
+
+.groupControlsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.groupControlsTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e4620;
+}
+
+.groupSelectionBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #165d2d;
+  background: #e3f4e8;
+}
+
+.groupControlsHint {
+  font-size: 12px;
+  color: #4d6652;
+  margin-bottom: 10px;
+}
+
+.groupControls {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.createGroupButton {
+  padding: 10px 16px;
+  background: #52c41a;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.createGroupButton:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.createGroupButton:hover:not(:disabled) {
+  background: #73d13d;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 768px) {
+  .modePanel {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .modePanelButtons {
+    width: 100%;
+  }
+
+  .modeButton,
+  .modeButtonActive {
+    flex: 1;
+    text-align: center;
+  }
+
+  .groupControls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* 组合内故障标题 */
+.paramGroupTitle {
+  font-weight: 500;
+  font-size: 14px;
+  color: #1890ff;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+/* 测试结束提示词 */
+.postRunHint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  margin-top: 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  background: linear-gradient(90deg, #f0f9ff 0%, #f9fafb 100%);
+  border: 1px solid rgba(147, 197, 253, 0.3);
+}
+
+.hintDotActive {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #1890ff;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.hintDotPulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #f59e0b;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.hintDotDone {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #52c41a;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.3); }
+}

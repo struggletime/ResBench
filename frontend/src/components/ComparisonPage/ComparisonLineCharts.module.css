@@ -1,0 +1,45 @@
+/* src/components/ComparisonLineCharts/ComparisonLineCharts.module.css */
+
+.chartsContainer {
+  margin-top: 0;
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 16px;
+  color: #1f2937;
+}
+
+.independentCharts {
+  display: grid;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.chartWrapper {
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 14px;
+  padding: 16px;
+  background-color: #fbfcfe;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
+}
+
+.chartTitle {
+  font-size: 14px;
+  margin-bottom: 8px;
+  color: #555;
+}
+
+.chart {
+  width: 100%;
+  height: 300px;
+}
+
+.overlayChart {
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 14px;
+  padding: 16px;
+  background-color: #fbfcfe;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
+}

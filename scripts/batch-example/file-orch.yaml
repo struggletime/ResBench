@@ -1,0 +1,225 @@
+# ============================================================================
+# 纯 file 类故障编排
+#   保留三类：move（文件移动）/ chmod（权限修改）/ append（文件追加）
+#   去掉一类：fileremoved（文件删除）—— 按 2026-10-08 的决定不测了
+#   强度 = 覆盖范围：high = 整个库目录；low = 目录里的某一个文件
+#
+# move 的目标目录定在 **PGDATA 自己里面** → mv 是同文件系统的 rename(2)：
+# 原子、瞬间完成、不拷贝任何字节、不占任何空间。
+#
+# 为什么 move 必须同盘（2026-10-07 那次炸盘的教训）：
+#   /var/lib/postgresql/data 是 bind 挂载 /mnt/nvme4n1/docker_pg10_data，
+#   而容器的 /tmp 没挂卷、落在可写层（/var/lib/docker/overlay2/…/diff/tmp），
+#   物理位置在宿主机的根分区 /dev/mapper/centos-root 上（889G）。
+#   原来的 dst-dir="/tmp/" 是**跨盘** mv = 先拷再删，260 GB 拷到 60 秒被 agent 的
+#   exec 超时（backend/agent/utils/tools.py:7 `def exec(command, timeout=60)`）杀掉，
+#   半成品把根分区撑到 100%，docker exec 全线 Error 126 / no space left on device。
+#   换成同盘目标之后，那个 60 秒超时永远碰不到。
+#
+# 目标（已核实）：容器 pg_tpcc32 → 5433 → database **postgres** → OID **12994**
+#   move  high 源 = /var/lib/postgresql/data/base/12994      整个 TPC-C 库目录
+#                落点 = /var/lib/postgresql/data/12994      ← 同一个盘
+#         low  源 = /var/lib/postgresql/data/base/12994/141113  stock 堆文件第 0 段
+#                落点 = /var/lib/postgresql/data/141113
+#         （--target 的语义是"移进这个目录、文件名不变"，最终落点就是换了个位置。）
+#   chmod high = 目录 base/12994，low = 文件 141113
+#   append high = 141113.34（stock 最后一段），low = 141113（非最后一段）
+#   -high-multi 用到的 5 个最热关系文件：
+#     141113 stock / 141116 stock_pkey / 141138 customer / 141166 oorder / 141189 order_line
+#
+# 跑法（--only-* 都是精确匹配，要写完整 key）：
+#   python3 scripts/resbench_batch.py \
+#     --databases scripts/batch-example/databases.yaml \
+#     --workloads scripts/batch-example/workloads.yaml \
+#     --orchestration scripts/batch-example/file-orch.yaml \
+#     --only-db pg-docker_32cpu_40mem_4buf_500connections \
+#     --only-workload tpcc-1000c-200 \
+#     --only-orchestration file-chmod-low
+#   不加 --execute 就是 dry-run。
+#   一次跑一档：先 file-chmod-low 冒烟，再 file-move-low，最后 file-move-high。
+#
+# ★ 加 --auto-file-targets 就不用抄 OID 了：下面所有路径参数会被换成 @auto: 哨兵，
+#   引擎查库解析（重灌数据也不会过期）。规则（后端 FileFaultTargetService 的 high 档推荐）：
+#     move    src-path→@auto:db-dir（整个库目录）  dst-dir→@auto:pgdata（数据总目录，同盘）★
+#     chmod   filepath→@auto:db-dir（high，不是某一个文件）
+#     append  filepath→@auto:hottest-last-segment ⚠ 就是下面被关掉的那个不可恢复档
+#   哨兵按库类型现场解析：PG 落到 PGDATA，MySQL 落到 @@datadir（也可以写中性名 @auto:datadir，
+#   与 @auto:pgdata 是同一个值）。
+#   注意 dst-dir→数据总目录 正好满足本文件要求的"同盘 rename"，不用再手工核 %d
+#   （C 项那个 stat 检查可以省了）。
+#   带建仓的轮次：脚本先把「重新 load」单独跑一轮（不带故障、reload=true，运行名带 -prime），
+#   建完再跑正式轮（reload=false）—— 正式轮提交时解析哨兵，拿到的就是刚建好的那份文件。
+#   顺序就是"先 reload 完成 → 再确认参数 → 再从第一个故障开始跑"。
+#   两个后果见 docs/batch-script-usage.md 第 3.4 节；计划里也会自己打出来。
+#
+# 注入落在 t=60/150/240s（3 个 batch，间隔 30s），负载 320s（计划终点 300s + 20s 尾巴）。只想注入一次就删掉第 2、3 个 batch。
+#
+# ── 开跑前确认 ─────────────────────────────────────────────────────────────
+#   A. root 分区已腾空、docker exec 能用（`df -h /` 不再是 100%）。
+#   B. 负载起得来（最近几轮有启动 ~11 秒就死的）。
+#   C. 重灌过数据就要重取 OID：
+#      docker exec pg_tpcc32 psql -p 5433 -U postgres -c "SELECT pg_relation_filepath('stock');"
+#   D. 同盘确认（两边 %d 必须一样）：
+#      docker exec pg_tpcc32 stat -c '%d %n' /var/lib/postgresql/data /var/lib/postgresql/data/base/12994
+#
+# ── 必须知道的行为 ─────────────────────────────────────────────────────────
+#   1. mark 只能填 000。强度来自**覆盖范围**而不是 mark 的值 —— 600/644/777 对 PG
+#      全是空操作（PG 用 O_RDWR 打开数据文件，owner 的 r 或 w 还在就能开）。
+#   2. 引擎给注入命令自动追加 --timeout <duration>，chaosblade 到点自己恢复；引擎同一
+#      时刻还会发自己的恢复命令，那条多半报"无实验可拆"（Error 1）。故障窗口 =
+#      chaosblade 的 timeout 窗口，是准的；faultInject.json 里 recovery 那行报错属正常。
+#   3. move 的恢复命令是引擎拿 **create** 拼的（不是 destroy，也没有 --timeout），会留一条
+#      僵尸实验记录；文件本身会被移回去。清记录：blade destroy --all
+#   4. move 恢复要是失败了，会留下 /var/lib/postgresql/data/12994（或 /141113）没还回去。
+#      同盘，手动 mv 回去即可、不占空间。**但残留不清，下一批会因为这个目标已存在而失败**
+#      （引擎不发 --force）—— 每批跑完扫一眼，有残留先清。
+#   5. 参数里写 * 不会展开（agent 侧 Popen 收的是 argv 列表，没有 shell），路径要写全。
+#      file 类故障没有 check 模板，verification 恒为 UNKNOWN，强度只能看 raw.csv。
+# ============================================================================
+
+name: file
+
+orchestrations:
+
+  # ── ① chmod 权限修改（最安全，先跑它）──────────────────────────────────────
+  # chmod 000 打在目录上会去掉目录的 x 位 → 目录里所有文件都没法按路径打开
+  # （PG 已经打开的 fd 不受影响，所以见效有几秒~几十秒延迟）。整个库准停摆。
+  - key: file-chmod-high
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.disk.filechmod
+            params:
+              filepath: "/var/lib/postgresql/data/base/12994"
+              mark: "000"
+              duration: "60"
+      - faults:
+          - nameKey: faultinject.fault.disk.filechmod
+            params:
+              filepath: "/var/lib/postgresql/data/base/12994"
+              mark: "000"
+              duration: "60"
+      - faults:
+          - nameKey: faultinject.fault.disk.filechmod
+            params:
+              filepath: "/var/lib/postgresql/data/base/12994"
+              mark: "000"
+              duration: "60"
+
+  # 低档：同一个 mark，只打在**一个**文件上 —— 强度差完全来自覆盖范围。
+  # 注意 141113 是 stock 的第 0 段，PG 扫 stock 都要从它开头读，所以它"覆盖小但不弱"。
+  - key: file-chmod-low
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.disk.filechmod
+            params:
+              filepath: "/var/lib/postgresql/data/base/12994/141113"
+              mark: "000"
+              duration: "60"
+      - faults:
+          - nameKey: faultinject.fault.disk.filechmod
+            params:
+              filepath: "/var/lib/postgresql/data/base/12994/141113"
+              mark: "000"
+              duration: "60"
+      - faults:
+          - nameKey: faultinject.fault.disk.filechmod
+            params:
+              filepath: "/var/lib/postgresql/data/base/12994/141113"
+              mark: "000"
+              duration: "60"
+
+  # ── ② move 文件移动 ───────────────────────────────────────────────────────
+  # base/12994 被 rename 成 data/12994：库目录从 PGDATA 里就地消失，所有按路径打开
+  # 全部 ENOENT → postgres panic + 崩溃重启循环，直到还回去。
+  - key: file-move-high
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.disk.filemove
+            params:
+              src-path: "/var/lib/postgresql/data/base/12994"
+              dst-dir: "/var/lib/postgresql/data"
+              duration: "60"
+      - faults:
+          - nameKey: faultinject.fault.disk.filemove
+            params:
+              src-path: "/var/lib/postgresql/data/base/12994"
+              dst-dir: "/var/lib/postgresql/data"
+              duration: "60"
+      - faults:
+          - nameKey: faultinject.fault.disk.filemove
+            params:
+              src-path: "/var/lib/postgresql/data/base/12994"
+              dst-dir: "/var/lib/postgresql/data"
+              duration: "60"
+
+  # 低档：只移一个文件 —— 强度差完全来自覆盖范围。
+  - key: file-move-low
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.disk.filemove
+            params:
+              src-path: "/var/lib/postgresql/data/base/12994/141113"
+              dst-dir: "/var/lib/postgresql/data"
+              duration: "60"
+      - faults:
+          - nameKey: faultinject.fault.disk.filemove
+            params:
+              src-path: "/var/lib/postgresql/data/base/12994/141113"
+              dst-dir: "/var/lib/postgresql/data"
+              duration: "60"
+      - faults:
+          - nameKey: faultinject.fault.disk.filemove
+            params:
+              src-path: "/var/lib/postgresql/data/base/12994/141113"
+              dst-dir: "/var/lib/postgresql/data"
+              duration: "60"
+
+  # ── ③ append 文件追加 ─────────────────────────────────────────────────────
+  # ⚠ high 档默认**关掉**（batches: [] = 只跑负载不注入）：引擎渲染的 append 命令从来不传
+  #   --enable-backup，追加进去的字节**恢复不了**；而 high 打在 stock 的最后一段上，PG 会把
+  #   多出来的垃圾当成一个新的块 → 每次扫到那里就报 invalid page → **故障窗口结束后库仍然是
+  #   坏的**，这一轮剩下的时间全废，得先把 stock 弄回去（TRUNCATE / 重灌 / 恢复备份）才能继续。
+  #   确认你有重灌手段后，把下面这段的注释去掉再跑。
+  - key: file-append-high
+    batches: []                      # ← 想跑：把下面整段的注释去掉
+      # - faults:
+      #     - nameKey: faultinject.fault.disk.fileappend
+      #       params:
+      #         filepath: "/var/lib/postgresql/data/base/12994/141113.34"
+      #         content: "RESBENCH_FAULT"
+      #         duration: "60"
+      # - faults:
+      #     - nameKey: faultinject.fault.disk.fileappend
+      #       params:
+      #         filepath: "/var/lib/postgresql/data/base/12994/141113.34"
+      #         content: "RESBENCH_FAULT"
+      #         duration: "60"
+      # - faults:
+      #     - nameKey: faultinject.fault.disk.fileappend
+      #       params:
+      #         filepath: "/var/lib/postgresql/data/base/12994/141113.34"
+      #         content: "RESBENCH_FAULT"
+      #         duration: "60"
+
+  # 低档是同一根轴的另一端：追加在**非最后一段**上，PG 算关系长度只看编号最大的段，
+  # 多出来的字节它压根不读 → 可跑、可复现、对负载基本无影响，是真正的"低"。
+  - key: file-append-low
+    batches:
+      - faults:
+          - nameKey: faultinject.fault.disk.fileappend
+            params:
+              filepath: "/var/lib/postgresql/data/base/12994/141113"
+              content: "RESBENCH_FAULT"
+              duration: "60"
+      - faults:
+          - nameKey: faultinject.fault.disk.fileappend
+            params:
+              filepath: "/var/lib/postgresql/data/base/12994/141113"
+              content: "RESBENCH_FAULT"
+              duration: "60"
+      - faults:
+          - nameKey: faultinject.fault.disk.fileappend
+            params:
+              filepath: "/var/lib/postgresql/data/base/12994/141113"
+              content: "RESBENCH_FAULT"
+              duration: "60"

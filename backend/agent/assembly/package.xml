@@ -1,0 +1,40 @@
+<assembly xmlns="http://maven.apache.org/ASSEMBLY/2.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/ASSEMBLY/2.0.0 http://maven.apache.org/xsd/assembly-2.0.0.xsd">
+    <id>package</id>
+    <includeBaseDirectory>true</includeBaseDirectory>
+
+    <formats>
+        <format>tar.gz</format>
+    </formats>
+    <fileSets>
+        <fileSet>
+            <directory>.</directory>
+            <outputDirectory>/</outputDirectory>
+            <includes>
+                <include>**/*.py</include>
+                <include>**/*.sh</include>
+            </includes>
+            <excludes>
+                <exclude>target/**</exclude>
+                <exclude>assembly/**</exclude>
+            </excludes>
+        </fileSet>
+        <fileSet>
+            <directory>${project.basedir}/dependencies</directory>
+            <outputDirectory>/dependencies</outputDirectory>
+        </fileSet>
+        <fileSet>
+            <directory>${project.basedir}/faults</directory>
+            <outputDirectory>/faults</outputDirectory>
+        </fileSet>
+        <fileSet>
+            <directory>${project.basedir}/scripts</directory>
+            <outputDirectory>/scripts</outputDirectory>
+        </fileSet>
+        <fileSet>
+            <directory>${project.basedir}/utils</directory>
+            <outputDirectory>/utils</outputDirectory>
+        </fileSet>
+    </fileSets>
+</assembly>

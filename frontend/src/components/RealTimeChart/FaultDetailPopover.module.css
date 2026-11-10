@@ -1,0 +1,247 @@
+.popover {
+  position: fixed;
+  z-index: 3000;
+  width: min(400px, calc(100vw - 24px));
+  max-height: min(70vh, 640px);
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid #f0b8b8;
+  border-radius: 12px;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.24);
+  overflow: hidden;
+  font-size: 12px;
+  color: #213547;
+  text-align: left;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: linear-gradient(90deg, #fff5f5, #fff9f0);
+  border-bottom: 1px solid #f3d2d2;
+  flex: 0 0 auto;
+}
+
+.title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 800;
+  color: #a8071a;
+  letter-spacing: 0.2px;
+}
+
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #ff4d4f;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.close {
+  border: none;
+  background: transparent;
+  color: #8c8c8c;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.close:hover {
+  color: #cf1322;
+}
+
+.body {
+  padding: 10px 12px 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card {
+  border: 1px solid #e8edf5;
+  border-radius: 10px;
+  background: #fbfdff;
+  padding: 10px;
+}
+
+.cardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.faultName {
+  color: #102a43;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 220px;
+  padding: 1px 7px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 1.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metaGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+  padding: 8px 0;
+  border-top: 1px dashed #e1e9f4;
+  border-bottom: 1px dashed #e1e9f4;
+}
+
+.metaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.metaItem span {
+  color: #7b8fa6;
+  font-size: 10px;
+}
+
+.metaItem strong {
+  color: #23405c;
+  font-size: 11px;
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 9px 0 5px;
+  color: #526b84;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.source {
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.paramTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.paramTable th,
+.paramTable td {
+  padding: 5px 7px;
+  border-bottom: 1px solid #edf2f8;
+  text-align: left;
+  vertical-align: top;
+  font-size: 11px;
+  line-height: 1.45;
+  word-break: break-all;
+}
+
+.paramTable th {
+  width: 46%;
+  color: #5f7d99;
+  font-weight: 600;
+  background: #f5f9ff;
+}
+
+.paramTable td {
+  color: #123a68;
+  font-weight: 700;
+}
+
+.unit {
+  margin-left: 3px;
+  color: #7b8fa6;
+  font-weight: 500;
+}
+
+.empty {
+  padding: 6px 0;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.verifyError {
+  margin-top: 7px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #fff7e8;
+  border: 1px solid #ffd59c;
+  color: #8f4b00;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.commands {
+  margin-top: 7px;
+  color: #526b84;
+  font-size: 11px;
+}
+
+.commands summary {
+  cursor: pointer;
+  color: #4b6b8a;
+  font-weight: 600;
+}
+
+.commandRow {
+  margin-top: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.commandRow span {
+  color: #7b8fa6;
+  font-size: 10px;
+}
+
+.commandRow code {
+  display: block;
+  padding: 5px 7px;
+  border-radius: 6px;
+  background: #f2f6fc;
+  border: 1px solid #e1e9f4;
+  color: #243b53;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

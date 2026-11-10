@@ -1,0 +1,319 @@
+.container {
+  position: relative;
+  padding: 28px 32px 32px;
+  background: #ffffff;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+}
+
+.formRowHorizontal {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+  align-items: flex-end; /* 确保在同一排时，底部对齐更整齐 */
+}
+
+.formGroup {
+  flex: 1;
+  min-width: 0;
+}
+
+.formGroup label {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  background-color: #f0f9ff;
+  color: #0369a1;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 9px;
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  margin-bottom: 10px;
+  line-height: 1.2;
+  transition: all 0.2s ease;
+}
+
+.formGroup label:hover {
+  background-color: #e0f2fe;
+  border-color: rgba(14, 165, 233, 0.4);
+}
+
+.input,
+.select {
+  width: 100%;
+  padding: 10px 14px; /* 稍微减小 padding 使其更紧凑，与 label 协调 */
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 10px; /* 相应调整圆角 */
+  font-size: 13px; /* 统一字号 */
+  outline: none;
+  background: #f8fafc;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.input:focus,
+.select:focus {
+  border-color: #007aff;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
+}
+
+.btnContainer {
+  display: flex;
+  justify-content: end;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.btnSave,
+.btnTest,
+.btnApply {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.14);
+}
+
+.btnSave {
+  background-color: #16a34a;
+  color: white;
+}
+
+.btnSave:disabled {
+  background-color: #9ca3af !important;
+  color: #f8fafc;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btnTest {
+  background-color: #2563eb;
+  color: white;
+}
+
+.btnSave:hover:not(:disabled) {
+  background-color: #15803d;
+  transform: translateY(-1px);
+}
+
+.btnTest:hover:not(:disabled) {
+  background-color: #1d4ed8;
+  transform: translateY(-1px);
+}
+
+.btnApply {
+  background-color: #7c3aed;
+  color: white;
+}
+
+.btnApply:hover:not(:disabled) {
+  background-color: #6d28d9;
+  transform: translateY(-1px);
+}
+
+.btnApply:disabled {
+  background-color: #9ca3af !important;
+  color: #f8fafc;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 参数区的小字说明 */
+.hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6b7280;
+}
+
+.btnSuccess {
+  background-color: #34c759 !important;
+  box-shadow: 0 2px 4px rgba(52, 199, 89, 0.3) !important;
+}
+
+.btnError {
+  background-color: #ff3b30 !important;
+  box-shadow: 0 2px 4px rgba(255, 59, 48, 0.3) !important;
+}
+
+.btnLoading {
+  background-color: #adb5bd !important;
+  cursor: wait;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  border-radius: 8px;
+  color: white;
+  font-weight: 500;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: fadeInOut 3s ease-in-out;
+}
+
+.success {
+  background-color: #34c759;
+}
+
+.error {
+  background-color: #ff3b30;
+}
+
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+  10% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  90% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+}
+
+.deploymentTypeContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 32px;
+}
+
+.deploymentTypeContainer label {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  background-color: #f0f9ff;
+  color: #0369a1;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 10px;
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  margin-bottom: 12px;
+  line-height: 1.2;
+  transition: all 0.2s ease;
+}
+
+.deploymentTypeContainer label:hover {
+  background-color: #e0f2fe;
+  border-color: rgba(14, 165, 233, 0.4);
+}
+
+.deploymentTypeSelect {
+  width: 100%;
+  max-width: 440px;
+  padding: 10px 16px; /* 减小 padding，使其与 label 比例更一致 */
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  outline: none;
+  transition: all 0.2s ease;
+  background-color: #f8fafc;
+  cursor: pointer;
+}
+
+.deploymentTypeSelect:focus {
+  border-color: #007aff;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+}
+
+.deploymentTypeSelect:hover {
+  border-color: #007aff;
+}
+
+.clusterNodes {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.clusterNode {
+  background: linear-gradient(180deg, #fbfcfe 0%, #f8fafc 100%);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+}
+
+.nodeHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.nodeHeader span {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  background-color: #f0f9ff;
+  color: #0369a1;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 8px;
+  border: 1px solid rgba(14, 165, 233, 0.2);
+}
+
+.removeNodeBtn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background-color: #ff3b30;
+  color: white;
+  font-size: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.removeNodeBtn:hover {
+  background-color: #d63027;
+  transform: scale(1.1);
+}
+
+.addNodeBtn {
+  width: 100%;
+  padding: 14px 20px;
+  border: 1px dashed #60a5fa;
+  border-radius: 14px;
+  background-color: #f8fbff;
+  color: #007aff;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.addNodeBtn:hover {
+  background-color: rgba(0, 122, 255, 0.05);
+  border-style: solid;
+}
+
+.configSection {
+  margin-bottom: 24px;
+}

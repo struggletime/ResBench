@@ -1,0 +1,10 @@
+# smallbank：PG 和 MySQL 用同一份参数（两个库的表结构由 DDL 资源保证一致）。
+#
+# accountsNum 100000 → 引擎按 accountsNum / 10000 换成 scalefactor=10，即 10 万账户。
+# smallbank 每一轮都会 create + load（没有 reload 语义），装载很快（分钟级）。
+workloads:
+  - key: smallbank-100k
+    name: smallbank
+    params:
+      accountsNum: "100000"
+      terminals: "20"

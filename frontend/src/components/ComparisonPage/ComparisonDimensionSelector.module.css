@@ -1,0 +1,47 @@
+/* src/components/ComparisonDimensionSelector.module.css */
+
+.container {
+  margin-bottom: 24px;
+  padding: 16px;
+  /* background-color: #fafafa; */
+  /* border: 1px solid #eaeaea; */
+  border-radius: 6px;
+}
+
+.title {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.options {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 14px;
+  color: #444;
+}
+
+.option input[type='radio'] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #1890ff; /* 蓝色选中色，符合主流 UI */
+}
+
+.hint {
+  font-size: 13px;
+  color: #888;
+  margin: 0;
+  line-height: 1.4;
+}

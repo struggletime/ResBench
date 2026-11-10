@@ -1,0 +1,43 @@
+.header {
+  min-height: 72px;
+  padding: 18px 24px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-title {
+  line-height: 1.2;
+  font-size: 28px;
+  font-weight: 700;
+  color: #1f2937;
+  margin-right: 16px;
+}
+
+.toggleButton {
+  padding: 10px 16px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid rgba(59, 130, 246, 0.16);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.08);
+}
+
+.toggleButton:hover {
+  background: #e0ecff;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.12);
+}

@@ -1,0 +1,22 @@
+#!/bin/sh
+# chaosblade 包装脚本（容器内使用）
+#
+# 容器用宿主 cgroup 命名空间时，/proc/1/cgroup 显示 /docker/<id>，而 /sys/fs/cgroup/memory
+# 挂载的已经是容器自己的 cgroup 目录；chaosblade 按 "<root>/memory/docker/<id>" 拼路径会
+# 找不到（报 cgroups: cgroup deleted），于是 mem load 无法按容器口径计算。
+# 这里在 <root>/memory/docker/<id> 建一个指向 /sys/fs/cgroup/memory 的符号链接，
+# 再给 `create mem load` 追加 --cgroup-root <root>；id 每次调用时现取，容器重建后自动跟上。
+# 只改 mem load：--cgroup-root 不是所有动作都声明过，给别的动作加会报 unknown flag。
+#
+# 非容器（宿主）环境 /proc/1/cgroup 里没有 /docker/<id>，脚本原样转发，不加参数。
+root=${CHAOSBLADE_CGROUP_ROOT:-/opt/chaosblade/cgroot}
+case " $* " in
+  *" create mem load "*)
+    id=$(sed -n 's|^[0-9]*:memory:/docker/||p' /proc/1/cgroup)
+    if [ -n "$id" ]; then
+      mkdir -p "$root/memory/docker" && ln -sfn /sys/fs/cgroup/memory "$root/memory/docker/$id"
+      set -- "$@" --cgroup-root "$root"
+    fi
+    ;;
+esac
+exec /opt/chaosblade/blade "$@"

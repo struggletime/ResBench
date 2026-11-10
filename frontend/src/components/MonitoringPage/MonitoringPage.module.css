@@ -1,0 +1,66 @@
+.page {
+  padding: 18px;
+}
+
+.toolbar {
+  padding: 16px;
+  margin-bottom: 18px;
+  background: #fff;
+  border: 1px solid #e7eaf0;
+  border-radius: 8px;
+}
+
+.statusLine {
+  margin-top: 12px;
+  color: #5f6672;
+}
+
+.categorySection {
+  margin-top: 20px;
+}
+
+.categorySection h3 {
+  margin: 0 0 10px;
+  color: #26374a;
+}
+
+.chartGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+  gap: 14px;
+}
+
+.chartCard {
+  min-width: 0;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #e7eaf0;
+  border-radius: 8px;
+}
+
+.chartHeader {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 6px 8px;
+  font-weight: 600;
+}
+
+.unit {
+  color: #7b8490;
+  font-weight: 400;
+}
+
+.placeholder {
+  padding: 72px 20px;
+  text-align: center;
+  color: #7b8490;
+  background: #fff;
+  border: 1px dashed #d6dbe3;
+  border-radius: 8px;
+}
+
+@media (max-width: 900px) {
+  .chartGrid {
+    grid-template-columns: 1fr;
+  }
+}

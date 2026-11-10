@@ -1,0 +1,44 @@
+# ============================================================================
+# 三个 OS 级故障，逐个串行 —— 每一批只放一个故障
+#
+# ⚠ 这几个故障（cpu / memory / network / disk / process）是 chaosblade 的，
+#   **不在引擎的故障目录里**（目录 /web/faults/catalog 只有 DBChaos 那 18 个），
+#   所以脚本查不到它们的默认时长 —— 必须显式写 params.duration，
+#   否则脚本会在启动时直接报错让你补，而不是拿一个猜来的数字去算负载时长。
+#
+# DBChaos 类的故障（connection.* / sql.* / txn.* / storage.* / buffer.* …）
+# 在目录里带 defaultDuration，不写 duration 也能算。
+#
+# 时刻表（引擎规则）：第一批 t=60s，每批结束 +30s 开下一批
+#   批1 cpu       t=60 → 90
+#   批2 net loss  t=120 → 150
+#   批3 disk fill t=180 → 210
+#   → 故障计划终点 210s，脚本再 +60s 尾巴 → 负载跑 270s（除非 workload 里写了更大的）
+# ============================================================================
+
+# name 是这个**文件**的总编排 key —— 只用来给本次调用的批次目录命名
+# （batch-results/<时间戳>_<库key>_<负载key>_os-demo/）。不写就退回文件名。
+name: os-demo
+
+# key 是这个编排自己的名字：参与每轮的结果目录命名（<库key>__<负载key>__<key>）。
+key: serial-os-faults
+
+batches:
+  - faults:
+      - nameKey: faultinject.fault.cpu.load
+        params:
+          duration: "30"
+
+  - faults:
+      - nameKey: faultinject.fault.network.package
+        params:
+          percent: "10"
+          interface: "ens17f0"
+          duration: "30"
+
+  - faults:
+      - nameKey: faultinject.fault.disk.fill
+        params:
+          path: "/tmp"
+          percent: "90"
+          duration: "30"

@@ -1,0 +1,297 @@
+# resbench 自动化测试矩阵示例配置（fixed-time 模式、多编排、组合故障）
+#
+# 用法：
+#   python3 scripts/resbench_matrix.py --config scripts/matrix-example.yaml                # 预览矩阵与预计耗时
+#   python3 scripts/resbench_matrix.py --config scripts/matrix-example.yaml --execute      # 真的跑
+#
+# 说明：
+#   * 连接信息只在本文件里，不会进入归档（引擎的 run-meta.json 与脚本的 request.json 都脱敏）
+#   * databases[].params 指定了就真的应用到数据库上（读现状/写库/重启/读回核对由引擎负责，
+#     走 /web/bench/db/params，与前端「数据库配置 → 应用配置」同一份实现），
+#     没指定就用数据库现有配置；跑完不还原
+#   * orchestrations[].stages 内多个故障 = 同时触发（组合故障）；多个 stages = 串行级联
+#   * 运行名 = <workload>_<dbKey>_<workloadKey>_<编排id>_r<重复>_<时间戳>
+
+engine:
+  # 唯一需要知道的：引擎在哪里。脚本从这里发 /web/bench/* 的 HTTP 请求。
+  # （前端和引擎同源，所以前端不需要配这个；脚本是外部进程才需要。）
+  # 也可以不写这一行，用命令行顶掉：--engine http://10.0.0.11:8080
+  baseUrl: http://127.0.0.1:8080
+  # 下面这些不是引擎的配置项，而是脚本作为外部驱动器的节奏参数：默认值都够用，
+  # 需要时再显式写出来（括号里是默认值）。
+  #   env (openGauss)              环境名 → 请求里的 envInfo；引擎不看它，manager 用它选引擎
+  #   monitorIntervalSec (1)       监控采样间隔 → 真正下发给引擎（-im，秒×1000）
+  #   pollIntervalSec (5)          脚本多久查一次 /web/bench/status
+  #   startTimeoutSec (180)        等任务真正跑起来的超时
+  #   endMarginSec (300)           等结束的余量（恢复/核验尾巴）
+  #   settleSec (20)               结束后等归档落盘再检索
+  #   cooldownSec (30)             轮间冷却
+  #   tailSec (60)                 预估用：恢复/核验尾巴
+  #   minSlackSec (30)             负载时长至少比故障计划多这么多
+  #   estimatedOverheadSec (120)   建表/装载预估开销（tpcc 建议调大或按 workload 覆盖）
+
+archive:
+  labels: [matrix, nightly]
+  note: "自动化矩阵"
+
+databases:
+  oglocal:
+    dbType: opengauss
+    deploymentType: standalone
+    standalone:
+      ip: 127.0.0.1
+      port: "5434"
+      username: test1230
+      password: "<口令>"
+    # ── 数据库参数 ──────────────────────────────────────────────
+    # 指定了就按这个应用（读现状 / 写库 / 重启 / 读回核对都由引擎的 /web/bench/db/params 负责，
+    # 与前端「数据库配置 → 应用配置」是同一份实现）；
+    # 不指定就什么都不做，直接用数据库现有配置；跑完不还原。
+    # 只认 shared_buffers 和 max_connections（MySQL 认 innodb_buffer_pool_size）。
+    params:
+      shared_buffers: 2GB
+      max_connections: "500"
+    # 引擎把重启命令下发到 库IP:agentPort（agent 与库同机，默认 8000）
+    agentPort: 8000
+    # 可选：数据库跑在 Docker 容器里时填容器名。非空 → 该库的 chaosblade 类故障
+    # （cpu/memory/disk/file/process）都套一层 docker exec 在容器内注入。
+    # 前置条件：容器内已装 chaosblade（/opt/chaosblade/blade）、agent 的 OS 用户
+    # 在 docker 组、容器名在 agent 主机上能解析。
+    # ⚠ 网络类故障（faultinject.fault.network.*）是例外：仍然打到宿主机（容器网卡名
+    #   与宿主机不同且网络命名空间隔离），引擎会打 WARN 日志。
+    # container: opengauss-db
+    # shared_buffers / max_connections 是 postmaster 上下文 → 必须重启才生效。
+    #   * 必须 detach（nohup ... &）：agent 等单条命令的上限是 30s，
+    #     不 detach 会被 agent kill 掉等待，"正在重启"就被误判成失败。
+    #   * agent 的用户身份 = 启动 agent 的用户；openGauss 不能用 root 起，
+    #     所以要 su 到数据库的 OS 用户；单机模式还要带上你安装时的 -Z 参数。
+    #   * 数据目录按 SHOW data_directory 读到的实际路径写。
+    restartCmd: 'nohup su - YOUR_USER -c "gs_ctl restart -D /var/lib/opengauss/data -Z single_node" >/tmp/rb_restart.log 2>&1 &'
+    # 库跑在容器里时，重启命令要自己写成 docker 形式（后端不会替你合成 systemd/docker/gs_ctl）。
+    # 它在**宿主机**上执行、不套 docker exec，所以直接 docker restart；同样必须 detach。
+    # restartCmd: 'nohup docker restart og-db >/tmp/rb_restart.log 2>&1 &'
+    waitSec: 180
+  # mysqllocal:
+  #   dbType: mysql
+  #   deploymentType: standalone
+  #   standalone:
+  #     ip: 127.0.0.1
+  #     port: "3306"
+  #     username: resbench
+  #     password: "请填写"
+  #   params:
+  #     innodb_buffer_pool_size: 2G
+  #     max_connections: "500"
+  #   agentPort: 8000
+    # MySQL 这两个参数用 SET GLOBAL 在线生效，不需要重启 → 不用配 restartCmd
+
+workloads:
+  std:            # smallbank 标准配置
+    name: smallbank
+    params:
+      duration: "600"          # 需 ≥ 故障计划 + 30s
+      rate: "200"
+      terminals: "32"
+      scalefactor: "50"
+  # w32:            # tpcc 32 仓库
+  #   name: tpcc
+  #   params:
+  #     duration: "600"
+  #     warehouses: "32"
+  #     terminals: "32"
+  #   runOptions:
+  #     reload: true             # tpcc 首轮必须 reload（脚本对每组第一轮自动开）
+  #   estimatedOverheadSec: 600
+
+orchestrations:
+  # ── 一条编排怎么写 ─────────────────────────────────────────────────────
+  # * nameKey 不用背：`python3 scripts/resbench_matrix.py --list-faults` 列出全部
+  #   （nameKey + 中文名 + 默认时长 + 必填参数）。下面 18 条覆盖引擎目录里的全部故障，
+  #   可以直接复制改名改参数。
+  # * 一条编排 = 一个故障计划。只打一个故障就用 faults: 简写（全部同一组、同时触发）；
+  #   要串行级联就用 stages:（多个 stage 依次执行，引擎自动在组间留 30s）；
+  #   同一 stage 里写多个故障 = 同时触发。
+  # * params 只写"必填 + 想调强度"的；其余可选参数（count / interval / rows / sessions /
+  #   mutators / scan-mode …）不写就用目录默认值。duration 是这个故障持续多少秒，
+  #   显式写出来便于预估总时长（不写则用目录里的默认时长）。
+  # * 参数值统一写成字符串（"200" 而不是 200）。
+
+  # ══ 单故障基线：连接类 ════════════════════════════════════════════════
+  # - id: single-conn-surge                    # 连接风暴
+  #   faults:
+  #     - nameKey: faultinject.fault.connection.surge
+  #       params: {concurrent-connections: "200", duration: "60"}
+  #
+  # - id: single-conn-exhausted                # 连接数耗尽
+  #   faults:
+  #     - nameKey: faultinject.fault.connection.limit.exceeded
+  #       params: {attempted-connections: "400", duration: "60"}
+  #
+  # - id: single-conn-thread-saturation        # 连接线程饱和
+  #   faults:
+  #     - nameKey: faultinject.fault.connection.thread_saturation
+  #       params: {concurrent-connections: "32", duration: "60"}
+  #
+  # # ══ 单故障基线：SQL / 执行类 ══════════════════════════════════════════
+  # - id: single-sql-plan-flip                 # 执行计划翻转
+  #   faults:
+  #     - nameKey: faultinject.fault.sql.plan_flip
+  #       params: {threads: "16", duration: "60"}        # count / interval 可选
+  #
+  # - id: single-sql-depth                     # SQL 表达式解析爆栈
+  #   faults:
+  #     - nameKey: faultinject.fault.sql.stack_overflow.sql_depth
+  #       params: {duration: "30"}
+  #
+  # - id: single-sql-view-nest                 # SQL 视图嵌套爆栈
+  #   faults:
+  #     - nameKey: faultinject.fault.sql.stack_overflow.view_nest
+  #       params: {duration: "30"}
+  #
+  # - id: single-sql-join-bomb                 # SQL Join 搜索空间爆炸
+  #   faults:
+  #     - nameKey: faultinject.fault.sql.stack_overflow.join_bomb
+  #       params: {duration: "30"}
+  #
+  # - id: single-exec-func-recurse             # 函数递归执行爆栈
+  #   faults:
+  #     - nameKey: faultinject.fault.exec.stack_overflow.func_recurse
+  #       params: {duration: "30"}
+  #
+  # - id: single-exec-proc-recurse             # 存储过程递归爆栈
+  #   faults:
+  #     - nameKey: faultinject.fault.exec.stack_overflow.proc_recurse
+  #       params: {duration: "30"}
+  #
+  # - id: single-exec-read-amp                 # 读取放大陷阱
+  #   faults:
+  #     - nameKey: faultinject.fault.exec.read_amp_trap
+  #       params: {rows: "30000", duration: "120"}       # warmup / mutators / scanners / scan-mode 可选
+  #
+  # # ══ 单故障基线：事务类 ════════════════════════════════════════════════
+  # - id: single-txn-stack-overflow            # 事务上下文爆栈
+  #   faults:
+  #     - nameKey: faultinject.fault.transaction.stack.overflow
+  #       params: {duration: "30"}
+  #
+  # # ⚠ table 必须是本次负载里真实存在且有数据的表：bmsql_stock 是 TPCC 的表，
+  # #   跑 smallbank 请改成 accounts（smallbank 的表：accounts / savings / checking），
+  # #   或按 matrix.exclude 里的方式排除这些组合。
+  # - id: single-txn-uncommitted               # 长事务持锁
+  #   faults:
+  #     - nameKey: faultinject.fault.txn.uncommitted_txn
+  #       params: {table: "bmsql_stock", holders: "2", rows: "500", duration: "60"}
+  #
+  # - id: single-txn-duplicate                 # 热点事务冲突
+  #   faults:
+  #     - nameKey: faultinject.fault.txn.duplicate_txn
+  #       params: {sessions: "50", mode: "UPDATE", duration: "60"}
+  #
+  # - id: single-txn-deadlock-storm            # 死锁检测风暴（table 同上，也是 TPCC 的表）
+  #   faults:
+  #     - nameKey: faultinject.fault.txn.deadlock_storm
+  #       params: {table: "bmsql_stock", waiters: "16", duration: "60"}
+  #
+  # - id: single-txn-max-prepared             # Prepared 事务积压（count 要超过 max_prepared_transactions 才触发）
+  #   faults:
+  #     - nameKey: faultinject.fault.txn.max_prepared
+  #       params: {count: "201", concurrency: "50", duration: "60"}
+  #
+  # - id: single-txn-massive-rollback          # 海量事务回滚
+  #   faults:
+  #     - nameKey: faultinject.fault.transaction.massive.rollback
+  #       params: {threads: "16", rollback-rate: "80", duration: "60"}
+  #
+  # # ══ 单故障基线：存储 / 缓冲类 ═════════════════════════════════════════
+  # - id: single-storage-mvcc-bloat            # MVCC 膨胀注入
+  #   faults:
+  #     - nameKey: faultinject.fault.storage.mvcc_bloat
+  #       params: {rows: "20000", duration: "120"}
+  #
+  # - id: single-buffer-memory-pressure        # 大对象缓冲挤压
+  #   faults:
+  #     - nameKey: faultinject.fault.buffer.memory_pressure
+  #       params: {batch: "100", threads: "4", duration: "60"}
+
+  # ══ 组合故障 ═════════════════════════════════════════════════════════
+  # 同一个 stage 内的故障同时触发；要"先 A 后 B"就拆成多个 stage（组间自动留 30s）。
+  # - id: combo-conn-planflip
+  #   note: "连接风暴 + 执行计划翻转 同时发生"
+  #   stages:
+  #     - key: s1
+  #       faults:
+  #         - nameKey: faultinject.fault.connection.surge
+  #           delay: 0
+  #           params: {concurrent-connections: "200", duration: "60"}
+  #         - nameKey: faultinject.fault.sql.plan_flip
+  #           delay: 0
+  #           params: {threads: "16", duration: "60"}
+
+            # ② 拆成两个 stage —— 引擎自动留 30s
+  - id: combo-conn-planflip
+    stages:
+      - key: s1
+        faults:
+          - nameKey: faultinject.fault.connection.surge
+            params: {concurrent-connections: "200", duration: "60"}
+      - key: s2
+        faults:
+          - nameKey: faultinject.fault.sql.plan_flip
+            params: {threads: "16", duration: "60"}
+
+  # ══ 文件类故障 ═══════════════════════════════════════════════════════
+  # 这四个 nameKey 不在引擎的故障目录里（--list-faults 里标 * 的就是它们，脚本自带），
+  # 但 nameKey 是有效的：引擎用 switch 直接接，不查目录。
+  #
+  # 路径有两条路：
+  #   ① 加 --auto-file-targets 跑 → 下面的 params 里路径写什么都无所谓，
+  #      会被换成 @auto: 哨兵，由引擎在开跑那一刻查库解析成真实路径
+  #      （推荐：手填的路径和实际不符时，故障会"注入成功但指标毫无变化"，最难查）。
+  #   ② 不加 → 完全按下面写的路径跑，路径错了就是打空。
+  #
+  # 带建仓的那一轮不用特殊处理：这一轮要 create / load / reload 时，引擎故意不解析哨兵，
+  # 等 job 把表建好、数据灌完再解析（提交那一刻解析出来的文件号建完就过期）。
+  #
+  # - id: single-disk-filemove                 # 搬走数据库文件（filemove，最常用来验恢复）
+  #   faults:
+  #     - nameKey: faultinject.fault.disk.filemove
+  #       params:
+  #         src-path: "@auto:db-dir"           # 整个库目录（不加开关时填真实路径）
+  #         dst-dir: "@auto:pgdata"            # 目标目录（数据总目录），文件移进去且保持原文件名
+  #         duration: "30"
+  #
+  # - id: single-disk-filechmod                # 改文件权限
+  #   faults:
+  #     - nameKey: faultinject.fault.disk.filechmod
+  #       params: {filepath: "@auto:db-dir", mark: "000", duration: "60"}
+  #
+  # - id: single-disk-fileappend               # 往表文件尾部灌数据（撑爆段文件）
+  #   faults:
+  #     - nameKey: faultinject.fault.disk.fileappend
+  #       params: {filepath: "@auto:hottest-last-segment", content: "chaosblade append test", duration: "60"}
+  #
+  # - id: single-disk-fileremoved              # 删文件（⚠ 后端没有对应的推荐规则，
+  #   faults:                                  #    @auto:hottest-file 是脚本自定：最热文件的第 0 段）
+  #     - nameKey: faultinject.fault.disk.fileremoved
+  #       params: {file-path: "@auto:hottest-file", duration: "60"}
+  #
+  # 哨兵可选名（写错引擎会报错并列出可选项，不会静默忽略）：
+  #   db-dir / hottest-file / hottest-last-segment / hottest-mid-segment / datadir（老名字 pgdata 同值）
+  # 哨兵按库类型现场解析：PG → PGDATA，MySQL → @@datadir。所以 MySQL 上
+  #   hottest-last-segment 就是整张 .ibd（InnoDB 一表一个文件、不分段），
+  #   hottest-mid-segment 会明确报"解析不出路径"（不分段的库没有中间段），
+  #   其余库类型报"暂不支持按库类型…挑选目标文件"。
+matrix:
+  repeat: 1
+  exclude:
+    # 表耦合的两条单故障基线用 TPCC 的表 bmsql_stock，在 smallbank(std) 上没这张表 →
+    # 默认把这几格排除（不排的话故障注入会失败、白跑一轮）。
+    # ⚠ 完整 label 的格式是 <dbKey>_<workloadKey>_<编排id>_r<重复>；把 repeat 改成 2/3 时
+    #   这里要相应加 _r2/_r3，或者干脆用 --only single-txn-uncommitted,single-txn-deadlock-storm
+    #   只跑这两条（那种跑法下 table 用 w32 的 bmsql_stock）。
+    - oglocal_std_single-txn-uncommitted_r1
+    - mysqllocal_std_single-txn-uncommitted_r1
+    - oglocal_std_single-txn-deadlock-storm_r1
+    - mysqllocal_std_single-txn-deadlock-storm_r1
+    # 也可以按 库@负载 整体排除（示例）
+    - mysqllocal@w32

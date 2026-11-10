@@ -1,0 +1,118 @@
+.tooltipWrapper {
+  position: relative;
+  min-width: 300px;
+  max-width: 400px;
+  padding: 20px 20px 16px;
+  background: #ffffff;
+  border-radius: 12px;
+}
+
+.tooltipTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.tooltipContent {
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+
+.tooltipFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.tooltipProgress {
+  font-size: 13px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.tooltipButtons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btnNext {
+  background-color: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  outline: none;
+}
+
+.btnNext:hover {
+  background-color: #1d4ed8;
+}
+
+.btnBack {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: color 0.2s ease, background-color 0.2s ease;
+  outline: none;
+}
+
+.btnBack:hover {
+  color: #334155;
+  background-color: #f1f5f9;
+}
+
+.btnSkip {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: color 0.2s ease;
+  outline: none;
+}
+
+.btnSkip:hover {
+  color: #64748b;
+}
+
+.btnClose {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 20px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.2s ease, background-color 0.2s ease;
+  outline: none;
+  line-height: 1;
+}
+
+.btnClose:hover {
+  color: #64748b;
+  background-color: #f1f5f9;
+}

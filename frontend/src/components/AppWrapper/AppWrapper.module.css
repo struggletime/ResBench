@@ -1,0 +1,8 @@
+.app-container{
+    display: flex;
+    gap: 24px;
+    align-items: stretch;
+    min-height: 100vh;
+    height: 100%;
+    padding: 24px;
+}

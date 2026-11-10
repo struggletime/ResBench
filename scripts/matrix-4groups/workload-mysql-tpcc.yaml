@@ -1,0 +1,8 @@
+# MySQL 侧 TPC-C：库里已有 10 个仓（2026-10-27 核对），warehouses 写 10 直接复用，不重建。
+workloads:
+  - key: tpcc-10w
+    name: tpcc
+    params:
+      warehouses: "10"
+      concurrency: "10"
+      reload: "true"

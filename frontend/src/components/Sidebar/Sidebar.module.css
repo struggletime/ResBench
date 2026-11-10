@@ -1,0 +1,120 @@
+/* src/components/Sidebar/Sidebar.css */
+.sidebar {
+  flex: 0 0 220px;
+  width: 220px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, #f8fafc 100%);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 16px 12px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+  position: sticky;
+  top: 24px;
+  align-self: flex-start;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+.sidebarList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sidebarGroup {
+  list-style: none;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.sidebarGroupTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #334155;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.sidebarGroupTitle::after {
+  content: '▾';
+  font-size: 12px;
+  color: #6a7892;
+  transition: transform 0.2s ease;
+}
+
+.sidebarGroupTitle:hover {
+  background: #f7faff;
+}
+
+.sidebarGroupTitleActive {
+  color: #184d9e;
+}
+
+.sidebarGroupTitleCollapsed::after {
+  transform: rotate(-90deg);
+}
+
+.sidebarSubList {
+  list-style: none;
+  margin: 0;
+  padding: 4px 8px 8px;
+  display: grid;
+  gap: 6px;
+  max-height: 320px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.2s ease;
+}
+
+.sidebarSubListCollapsed {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.sidebarItem {
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #475569;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.sidebarItem:hover {
+  background: #f4f8ff;
+  color: #244f9f;
+  transform: translateX(1px);
+}
+
+.sidebarItem.active {
+  background: linear-gradient(180deg, #eef4ff 0%, #e6efff 100%);
+  color: #0f4ab2;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.12);
+}
+
+.sidebarLabel {
+  display: block;
+}
+
+.sidebarItem.active .sidebarLabel {
+  color: #0f4ab2;
+  font-weight: 600;
+}

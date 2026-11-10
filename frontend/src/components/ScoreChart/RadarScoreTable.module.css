@@ -1,0 +1,118 @@
+.radar-score-table-container {
+  margin: 0;
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e5e7eb;
+}
+
+.table-title {
+  padding: 14px 24px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2937;
+  background: linear-gradient(180deg, #fafbfc 0%, #f3f4f6 100%);
+  border-bottom: 1px solid #e5e7eb;
+  letter-spacing: 0.5px;
+  border-radius: 12px 12px 0 0;
+}
+
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.score-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.score-table thead th {
+  padding: 10px 6px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4b5563;
+  white-space: nowrap;
+  background-color: #f9fafb;
+  border-bottom: 2px solid #e5e7eb;
+  cursor: help;
+  transition: color 0.15s ease;
+}
+
+.score-table thead th:hover {
+  color: #1890ff;
+}
+
+.score-table tbody td {
+  padding: 10px 6px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  border-bottom: 1px solid #f3f4f6;
+  transition: background-color 0.15s ease;
+}
+
+.score-table tbody tr:hover td {
+  background-color: #f0f7ff;
+}
+
+.score-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* 颜色分级 */
+td[data-tier="high"] {
+  color: #059669;
+}
+
+td[data-tier="mid"] {
+  color: #d97706;
+}
+
+td[data-tier="low"] {
+  color: #dc2626;
+}
+
+.tooltip {
+  position: fixed;
+  background: #1f2937;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  max-width: 280px;
+  min-width: 120px;
+  word-wrap: break-word;
+  z-index: 2000;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .score-table thead th,
+  .score-table tbody td {
+    font-size: 11px;
+    padding: 8px 4px;
+  }
+
+  .score-table {
+    min-width: 560px;
+  }
+
+  .table-title {
+    font-size: 13px;
+    padding: 10px 16px;
+  }
+
+  .tooltip {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+}
