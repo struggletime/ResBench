@@ -238,7 +238,33 @@ Java 故障目录使用以下标识，对应程序位于 `backend/agent/scripts/
    tar -xvzf chaosblade-1.7.4-linux-amd64.tar.gz -C /opt/
    ```
 
-   如需在容器内注入，需要在容器中安装相同版本的 ChaosBlade，并补充经过 `ns_target` 补丁的 YAML 与 `blade-cg` 包装脚本，具体步骤见 [scripts/chaosblade/README.md](scripts/chaosblade/README.md)。
+   如需在容器内注入，需要在容器中安装相同版本的 ChaosBlade。容器口径的内存故障依赖 OS 规格 YAML 中的 `ns_target` flag 和 `blade-cg` 包装脚本。配置了 `containerName` 时，引擎会调用 `/opt/chaosblade/blade-cg` 并追加 `--channel nsexec --ns_target 1`，内存比例按容器 cgroup 限额计算；宿主机部署仍使用 `/opt/chaosblade/blade`。
+
+   ```bash
+   # 备份容器内旧版本，并解包 1.7.4
+   docker exec <容器> tar czf /opt/chaosblade-backup.tgz -C /opt chaosblade
+   docker cp chaosblade-1.7.4-linux-amd64.tar.gz <容器>:/opt/cb174.tar.gz
+   docker exec <容器> sh -c 'cd /opt && tar xzf cb174.tar.gz \
+     && rm cb174.tar.gz && mv chaosblade chaosblade-old \
+     && mv chaosblade-1.7.4 chaosblade'
+
+   # 给 OS 规格 YAML 补入 ns_target，再拷回容器
+   mkdir -p /tmp/cb174 && tar xzf chaosblade-1.7.4-linux-amd64.tar.gz -C /tmp/cb174 \
+     chaosblade-1.7.4/yaml/chaosblade-os-spec-1.7.4.yaml
+   python3 scripts/chaosblade/patch-os-spec.py \
+     /tmp/cb174/chaosblade-1.7.4/yaml/chaosblade-os-spec-1.7.4.yaml
+   docker cp /tmp/cb174/chaosblade-1.7.4/yaml/chaosblade-os-spec-1.7.4.yaml \
+     <容器>:/opt/chaosblade/yaml/
+
+   # 安装用于修正 cgroup 路径的包装脚本
+   docker cp scripts/chaosblade/blade-cg <容器>:/opt/chaosblade/blade-cg
+   docker exec <容器> chmod 755 /opt/chaosblade/blade-cg
+
+   # 验证 CLI 已识别 ns_target
+   docker exec <容器> /opt/chaosblade/blade create mem load -h | grep ns_target
+   ```
+
+   容器文件系统不会在容器重建后保留，容器重建后需要重新执行上述步骤。冒烟验证与常见问题见 [scripts/chaosblade/README.md](scripts/chaosblade/README.md)。
 
 3. 将 `DBChaos` 目录复制到 `/opt/`。
 

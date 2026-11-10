@@ -238,7 +238,33 @@ Perform the following steps on the database host.
    tar -xvzf chaosblade-1.7.4-linux-amd64.tar.gz -C /opt/
    ```
 
-   For containerized injection, install the same ChaosBlade version inside the container and add the patched YAML and `blade-cg` wrapper described in [scripts/chaosblade/README.md](scripts/chaosblade/README.md).
+   For containerized injection, install the same ChaosBlade version inside the container. Container-mode memory faults require the `ns_target` flag in the OS spec YAML and the `blade-cg` wrapper. When `containerName` is set, the engine invokes `/opt/chaosblade/blade-cg` and appends `--channel nsexec --ns_target 1`, so memory percentages are calculated against the container cgroup limit; host deployments keep using `/opt/chaosblade/blade`.
+
+   ```bash
+   # Back up the existing installation and unpack 1.7.4 in the container
+   docker exec <container> tar czf /opt/chaosblade-backup.tgz -C /opt chaosblade
+   docker cp chaosblade-1.7.4-linux-amd64.tar.gz <container>:/opt/cb174.tar.gz
+   docker exec <container> sh -c 'cd /opt && tar xzf cb174.tar.gz \
+     && rm cb174.tar.gz && mv chaosblade chaosblade-old \
+     && mv chaosblade-1.7.4 chaosblade'
+
+   # Add ns_target to the OS spec YAML and copy it back
+   mkdir -p /tmp/cb174 && tar xzf chaosblade-1.7.4-linux-amd64.tar.gz -C /tmp/cb174 \
+     chaosblade-1.7.4/yaml/chaosblade-os-spec-1.7.4.yaml
+   python3 scripts/chaosblade/patch-os-spec.py \
+     /tmp/cb174/chaosblade-1.7.4/yaml/chaosblade-os-spec-1.7.4.yaml
+   docker cp /tmp/cb174/chaosblade-1.7.4/yaml/chaosblade-os-spec-1.7.4.yaml \
+     <container>:/opt/chaosblade/yaml/
+
+   # Install the wrapper that resolves the container cgroup path
+   docker cp scripts/chaosblade/blade-cg <container>:/opt/chaosblade/blade-cg
+   docker exec <container> chmod 755 /opt/chaosblade/blade-cg
+
+   # Verify that the CLI accepts ns_target
+   docker exec <container> /opt/chaosblade/blade create mem load -h | grep ns_target
+   ```
+
+   The container filesystem does not persist across container recreation; rerun these steps after a container is rebuilt. See [scripts/chaosblade/README.md](scripts/chaosblade/README.md) for smoke tests and troubleshooting.
 
 3. Copy the `DBChaos` directory to `/opt/`.
 
