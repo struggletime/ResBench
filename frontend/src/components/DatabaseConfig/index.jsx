@@ -239,14 +239,14 @@ const DatabaseConfig = () => {
 
       if (response?.success) {
         dispatch(setConnectionStatus('success'));
-        showToast(response.message || translate('DatabaseConfig.test.succcess') || '连接成功！', 'success');
+        showToast(response.message || translate('DatabaseConfig.testSuccess'), 'success');
       } else {
-        const errorMsg = response?.message || translate('DatabaseConfig.test.fail') || '连接失败，请检查配置';
+        const errorMsg = response?.message || translate('DatabaseConfig.testFail');
         dispatch(setConnectionStatus(`error: ${errorMsg}`));
         showToast(errorMsg, 'error');
       }
     } catch (error) {
-      const errorMsg = error.message || translate('DatabaseConfig.test.fail') || '连接失败，请检查配置';
+      const errorMsg = error.message || translate('DatabaseConfig.testFail');
       dispatch(setConnectionStatus(`error: ${errorMsg}`));
       showToast(errorMsg, 'error');
     } finally {
@@ -280,23 +280,23 @@ const DatabaseConfig = () => {
       return;
     }
     if (state.deploymentType !== 'standalone') {
-      showToast('只能改单机数据库的参数（分布式暂不支持）', 'error');
+      showToast(translate('DatabaseConfig.applyOnlyStandalone'), 'error');
       return;
     }
     if (!PARAM_SUPPORTED_TYPES.includes(state.type)) {
-      showToast(`只能改单机 openGauss / PostgreSQL / MySQL 的参数，当前是 ${state.type}`, 'error');
+      showToast(translate('DatabaseConfig.applyUnsupportedType', { type: state.type }), 'error');
       return;
     }
 
     const bufferPool = (state.bufferPool || '').trim();
     const maxConnections = (state.maxConnections || '').trim();
     if (!bufferPool && !maxConnections) {
-      showToast('请先填写要修改的参数（缓冲池大小 / 最大连接数上限），两个都空就没必要应用', 'error');
+      showToast(translate('DatabaseConfig.applyNeedParams'), 'error');
       return;
     }
     const restartCommand = (state.restartCommand || '').trim();
     if (NEEDS_RESTART_TYPES.includes(state.type) && !restartCommand) {
-      showToast('这个库的这两个参数必须重启才生效，请先填写重启命令', 'error');
+      showToast(translate('DatabaseConfig.applyNeedRestart'), 'error');
       return;
     }
 
@@ -340,17 +340,19 @@ const DatabaseConfig = () => {
         const ignored = response.ignored || [];
         showToast(
           ignored.length > 0
-            ? `${response.message || '参数已应用'}（忽略了不认识的参数：${ignored.join('、')}）`
-            : response.message || '参数已应用',
+            ? translate('DatabaseConfig.applyIgnored', {
+              params: ignored.join(translate('common.listSeparator')),
+            })
+            : response.message || translate('DatabaseConfig.applyApplied'),
           'success',
         );
       } else {
-        const errorMsg = response?.message || '参数应用失败';
+        const errorMsg = response?.message || translate('DatabaseConfig.applyFailed');
         dispatch(setApplyStatus(`error: ${errorMsg}`));
         showToast(errorMsg, 'error');
       }
     } catch (error) {
-      const errorMsg = error.message || '参数应用失败';
+      const errorMsg = error.message || translate('DatabaseConfig.applyFailed');
       dispatch(setApplyStatus(`error: ${errorMsg}`));
       showToast(errorMsg, 'error');
     } finally {
@@ -430,22 +432,22 @@ const DatabaseConfig = () => {
   };
 
   const getSaveButtonText = () => {
-    if (saveButtonState === 'error') return '✗ Save Failed';
+    if (saveButtonState === 'error') return translate('DatabaseConfig.saveFailed');
     if (isSaved) return translate('DatabaseConfig.saved') || '已保存';
     return translate('DatabaseConfig.saveBtn') || 'Save';
   };
 
   const getTestButtonText = () => {
-    if (testButtonState === 'loading') return '⏳ Testing...';
+    if (testButtonState === 'loading') return translate('DatabaseConfig.testing');
     if (state.connectionStatus === 'success') return translate('DatabaseConfig.connected') || '已连接';
     return translate('DatabaseConfig.testBtn') || 'Test Connection';
   };
 
   const getApplyButtonText = () => {
-    if (applyButtonState === 'loading') return '⏳ 应用中...';
-    if (state.applyStatus === 'success') return '✓ 已应用';
+    if (applyButtonState === 'loading') return translate('DatabaseConfig.applying');
+    if (state.applyStatus === 'success') return translate('DatabaseConfig.applied');
     // 失败原因保留在按钮上（toast 3 秒就没了），详细原因看 title
-    if ((state.applyStatus || '').startsWith('error')) return '✗ 应用失败';
+    if ((state.applyStatus || '').startsWith('error')) return translate('DatabaseConfig.applyFailedShort');
     return translate('DatabaseConfig.applyBtn') || '应用配置';
   };
 
@@ -677,8 +679,7 @@ const DatabaseConfig = () => {
                 className={styles.input}
               />
               <span className={styles.hint}>
-                agent 等单条命令的上限是 30 秒，所以命令要写成后台执行（nohup ... &amp;），
-                再由服务端轮询重连确认是否真的起来了。
+                {translate('DatabaseConfig.agentRestartHint')}
               </span>
               {(state.containerName || '').trim() !== '' && (
                 <span className={styles.hint}>
@@ -688,15 +689,14 @@ const DatabaseConfig = () => {
             </div>
           )}
           <span className={styles.hint}>
-            只支持单机 openGauss / PostgreSQL / MySQL。缓冲池：og/pg 改 shared_buffers，MySQL 改 innodb_buffer_pool_size；
-            连接数都改 max_connections。空着表示这个参数不动；og/pg 改完会重启，MySQL 在线生效不重启。
+            {translate('DatabaseConfig.applySupportedHint')}
           </span>
         </div>
       )}
 
       {state.deploymentType === 'standalone' && !PARAM_SUPPORTED_TYPES.includes(state.type) && (
         <span className={styles.hint}>
-          「应用配置」只支持单机 openGauss / PostgreSQL / MySQL，当前类型是 {state.type}，改不了缓冲池和连接数。
+          {translate('DatabaseConfig.applyUnsupportedHint', { type: state.type })}
         </span>
       )}
 

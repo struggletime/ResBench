@@ -32,7 +32,7 @@ const SelectedRecordsList = ({ selectedRecords, onRemove }) => {
             <button
               className={styles.removeBtn}
               onClick={() => onRemove(record.id)}
-              aria-label={translate('comparison.selectedRecords.removeAria', { id: record.id })}
+              aria-label={`${translate('comparison.selectedRecords.removeAriaPrefix')} ${record.id}`}
             >
               ×
             </button>

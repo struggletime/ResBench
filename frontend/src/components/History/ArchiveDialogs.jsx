@@ -1,18 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import styles from './HistoryTable.module.css';
 import { HISTORY_EXPORT_CATEGORIES, HISTORY_EXPORT_DEFAULT } from '../../api/suiteApi';
+import { useLanguage } from '../../i18n';
 
 // 导出类别展示文案（raw.csv 单独强调体积）
-const CATEGORY_LABELS = {
-  summary: 'summary.json（汇总 / 评分）',
-  monitor: 'monitor.csv（曲线数据）',
-  metric: 'metric.json（韧性指标）',
-  fault: 'faultInject.json（故障注入）',
-  config: 'config.xml（数据库配置）',
-  charts: 'PNG 图表',
-  detail: '明细文本（result.txt / samples.csv 等）',
-  other: '其它未分类文件',
-  raw: 'raw.csv（原始压测明细，体积很大）',
+const CATEGORY_LABEL_KEYS = {
+  summary: 'archive.category.summary',
+  monitor: 'archive.category.monitor',
+  metric: 'archive.category.metric',
+  fault: 'archive.category.fault',
+  config: 'archive.category.config',
+  charts: 'archive.category.charts',
+  detail: 'archive.category.detail',
+  other: 'archive.category.other',
+  raw: 'archive.category.raw',
 };
 
 function formatBytes(bytes) {
@@ -30,6 +31,7 @@ function formatBytes(bytes) {
 
 /** 通用对话框外壳：遮罩点击 / Esc 关闭，沿用 ReportPreview 的自绘弹窗风格 */
 function DialogShell({ title, subtitle, onClose, children, footer }) {
+  const { translate } = useLanguage();
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') onClose?.();
@@ -51,7 +53,7 @@ function DialogShell({ title, subtitle, onClose, children, footer }) {
             <h3>{title}</h3>
             {subtitle ? <div className={styles.dialogSubtitle}>{subtitle}</div> : null}
           </div>
-          <button type="button" className={styles.dialogCloseBtn} onClick={onClose} aria-label="关闭">
+          <button type="button" className={styles.dialogCloseBtn} onClick={onClose} aria-label={translate('archive.close')}>
             ×
           </button>
         </div>
@@ -67,6 +69,7 @@ function DialogShell({ title, subtitle, onClose, children, footer }) {
  * 标签支持逗号（中英文）或回车分隔，重复标签自动去重。
  */
 export function LabelDialog({ run, saving, error, onCancel, onSubmit }) {
+  const { translate } = useLanguage();
   const [labels, setLabels] = useState(() => (Array.isArray(run?.labels) ? [...run.labels] : []));
   const [input, setInput] = useState('');
   const [note, setNote] = useState(run?.note || '');
@@ -114,13 +117,13 @@ export function LabelDialog({ run, saving, error, onCancel, onSubmit }) {
 
   return (
     <DialogShell
-      title="打标签 / 备注"
+      title={translate('archive.labelTitle')}
       subtitle={run?.historyName}
       onClose={saving ? undefined : onCancel}
       footer={
         <>
           <button type="button" className={styles.secondaryBtn} onClick={onCancel} disabled={saving}>
-            取消
+            {translate('common.cancel')}
           </button>
           <button
             type="button"
@@ -128,13 +131,13 @@ export function LabelDialog({ run, saving, error, onCancel, onSubmit }) {
             onClick={() => onSubmit({ labels, note })}
             disabled={saving}
           >
-            {saving ? '保存中...' : '保存'}
+            {saving ? translate('common.saving') : translate('common.save')}
           </button>
         </>
       }
     >
       <div className={styles.dialogField}>
-        <label>标签</label>
+        <label>{translate('archive.labels')}</label>
         {labels.length > 0 ? (
           <div className={styles.tagList}>
             {labels.map((label) => (
@@ -144,7 +147,7 @@ export function LabelDialog({ run, saving, error, onCancel, onSubmit }) {
                   type="button"
                   className={styles.tagRemove}
                   onClick={() => removeLabel(label)}
-                  aria-label={`移除标签 ${label}`}
+                  aria-label={translate('archive.removeLabel', { label })}
                 >
                   ×
                 </button>
@@ -156,21 +159,21 @@ export function LabelDialog({ run, saving, error, onCancel, onSubmit }) {
           <input
             type="text"
             className={styles.dialogInput}
-            placeholder="输入标签后按回车或逗号添加，如 nightly, p1"
+            placeholder={translate('archive.labelPlaceholder')}
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleInputKeyDown}
             onBlur={() => addLabels(input)}
           />
         </div>
-        <div className={styles.dialogHint}>逗号（, / ，）或回车分隔；Backspace 可删除最后一个标签。</div>
+        <div className={styles.dialogHint}>{translate('archive.labelHint')}</div>
       </div>
 
       <div className={styles.dialogField}>
-        <label>备注</label>
+        <label>{translate('archive.note')}</label>
         <textarea
           className={styles.dialogTextarea}
-          placeholder="记录这轮测试的结论、环境说明等"
+          placeholder={translate('archive.notePlaceholder')}
           value={note}
           onChange={(event) => setNote(event.target.value)}
         />
@@ -185,6 +188,7 @@ export function LabelDialog({ run, saving, error, onCancel, onSubmit }) {
  * 导出归档 zip 对话框。默认勾选「除 raw 外全部」，raw.csv 需显式勾选。
  */
 export function ExportDialog({ run, exporting, error, onCancel, onSubmit }) {
+  const { translate } = useLanguage();
   const [selected, setSelected] = useState(() => new Set(HISTORY_EXPORT_DEFAULT));
 
   const toggle = (category) => {
@@ -205,13 +209,13 @@ export function ExportDialog({ run, exporting, error, onCancel, onSubmit }) {
 
   return (
     <DialogShell
-      title="导出归档 zip"
+      title={translate('archive.exportTitle')}
       subtitle={run?.historyName}
       onClose={exporting ? undefined : onCancel}
       footer={
         <>
           <button type="button" className={styles.secondaryBtn} onClick={onCancel} disabled={exporting}>
-            取消
+            {translate('common.cancel')}
           </button>
           <button
             type="button"
@@ -219,13 +223,13 @@ export function ExportDialog({ run, exporting, error, onCancel, onSubmit }) {
             onClick={() => onSubmit(selectedList)}
             disabled={exporting || selectedList.length === 0}
           >
-            {exporting ? '导出中...' : '导出 zip'}
+            {exporting ? translate('common.exporting') : translate('archive.export')}
           </button>
         </>
       }
     >
       <div className={styles.dialogField}>
-        <label>包含内容</label>
+        <label>{translate('archive.include')}</label>
         <div className={styles.categoryList}>
           {HISTORY_EXPORT_CATEGORIES.map((category) => (
             <label
@@ -237,20 +241,24 @@ export function ExportDialog({ run, exporting, error, onCancel, onSubmit }) {
                 checked={selected.has(category)}
                 onChange={() => toggle(category)}
               />
-              {CATEGORY_LABELS[category] || category}
+              {translate(CATEGORY_LABEL_KEYS[category] || category)}
             </label>
           ))}
         </div>
         <div className={styles.dialogHint}>
-          默认导出不含 raw.csv；{artifacts?.sizeBytes
-            ? `本轮全部产物约 ${formatBytes(artifacts.sizeBytes)}，其中 raw.csv 约 ${formatBytes(artifacts.rawBytes)}。`
-            : 'raw.csv 单轮可达 200MB+，勾选前请确认网络与磁盘空间。'}
+          {translate('archive.rawHintDefault')}
+          {artifacts?.sizeBytes
+            ? translate('archive.rawHintSize', {
+              total: formatBytes(artifacts.sizeBytes),
+              raw: formatBytes(artifacts.rawBytes),
+            })
+            : translate('archive.rawHintNoSize')}
         </div>
       </div>
 
       {includesRaw ? (
         <div className={styles.dialogError}>
-          ⚠ 已勾选 raw.csv（原始压测明细），导出包可能非常大。
+          {translate('archive.rawWarning')}
         </div>
       ) : null}
 

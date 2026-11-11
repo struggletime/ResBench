@@ -570,7 +570,7 @@ const FaultInject = () => {
         setCheckingOrchestration(true);
         setOrchestrationCheck(null);
         try {
-            const result = await checkFaultOrchestration(buildFaultsPayload());
+            const result = await checkFaultOrchestration(buildRequestBody());
             setOrchestrationCheck(result);
             if (result?.checked === false) {
                 showToast(result.message || translate('faultinject.checkError'), 'error');

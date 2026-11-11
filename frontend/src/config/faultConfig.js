@@ -1,5 +1,7 @@
 // src/config/faultConfig.js
 
+import { translateInLang } from '../i18n';
+
 // 故障类型常量（推荐使用）
 export const FAULT_TYPES = {
   // CPU 相关
@@ -898,4 +900,77 @@ export function displayFaultName(def, translate, lang) {
   if (!def.nameKey) return def.name || "";
   const translated = translate(def.nameKey);
   return translated !== def.nameKey ? translated : (def.name || def.nameKey);
+}
+
+/** 名称归一化：忽略大小写与多余空白，用于把后端回传的中文 faultName 反查回 nameKey。 */
+function normalizeFaultText(text) {
+  return String(text || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * 把任意故障输入（nameKey / faultName / faultID / 故障对象）反查成目录里的 nameKey。
+ *
+ * <p>后端 `FaultInjectInfo` 只回传中文 `faultName`（yaml 的 plainName），
+ * 历史归档里也可能只有 `faultName`；实时图/历史表不能直接把这个中文字符串画到英文界面上。
+ * 这里按 yaml 的中英文 name 与词典条目做反查，拿不到就返回空串。
+ */
+export function resolveFaultKey(fault) {
+  if (fault == null) return "";
+  const info = typeof fault === "string" ? { faultName: fault } : fault;
+  const candidates = [info.nameKey, info.faultName, info.faultID]
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (FAULT_DEFINITIONS[candidate]) return candidate;
+    // 后端 faultID / nameKey 形如 faultinject.fault.connection.thread_saturation，
+    // 而 FAULT_DEFINITIONS 以 type（connection.thread.saturation）为键，先按反向映射还原。
+    if (NAME_KEY_TO_TYPE[candidate]) return NAME_KEY_TO_TYPE[candidate];
+  }
+
+  for (const candidate of candidates) {
+    const target = normalizeFaultText(candidate);
+    for (const [nameKey, def] of Object.entries(FAULT_DEFINITIONS)) {
+      const aliases = [
+        nameKey,
+        def?.nameKey,
+        pickI18n(def?.name, "zh"),
+        pickI18n(def?.name, "en"),
+        translateInLang("zh", nameKey),
+        translateInLang("en", nameKey),
+      ];
+      if (aliases.some((alias) => alias && normalizeFaultText(alias) === target)) {
+        return nameKey;
+      }
+    }
+  }
+  return "";
+}
+
+/**
+ * 故障展示名：优先 nameKey → yaml/词典译文；只有拿不到目录条目时才回退原始 faultName。
+ * 用于历史表格、红带标签、验证徽章等所有直接渲染后端 faultName 的地方。
+ */
+export function resolveFaultDisplayName(fault, translate, lang = "zh") {
+  if (fault == null) return "";
+  const info = typeof fault === "string" ? { faultName: fault } : fault;
+  const nameKey = resolveFaultKey(info);
+  if (nameKey) {
+    const def = FAULT_DEFINITIONS[nameKey];
+    if (def && typeof translate === "function") {
+      const translated = displayFaultName(def, translate, lang);
+      if (translated) return translated;
+    }
+    if (typeof translate === "function") {
+      const byKey = translate(nameKey);
+      if (byKey !== nameKey) return byKey;
+    }
+    return info.faultName || nameKey;
+  }
+  const raw = info.faultName || info.name || "";
+  if (typeof translate === "function" && raw) {
+    const translated = translate(raw);
+    if (translated !== raw) return translated;
+  }
+  return raw;
 }

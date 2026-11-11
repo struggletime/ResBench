@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useLanguage } from '../../i18n';
 import {
   CONTAINER_DEFAULT_METRIC_IDS,
   completeMonitoringSession,
@@ -32,6 +33,7 @@ const COMPLETE_RETRY_MS = 30000;
 
 const ObservabilityPoller = () => {
   const dispatch = useDispatch();
+  const { translate } = useLanguage();
   const enabled = useSelector((state) => state.observability.enabled);
   const selectedTargets = useSelector((state) => state.observability.selectedTargets);
   const selectedMetricIds = useSelector((state) => state.observability.selectedMetricIds);
@@ -114,7 +116,7 @@ const ObservabilityPoller = () => {
           dispatch(setMonitoringError(''));
         }
       } catch (error) {
-        if (!cancelled) dispatch(setMonitoringError(error.message || '监控链路暂不可用'));
+        if (!cancelled) dispatch(setMonitoringError(error.message || translate('observability.linkUnavailable')));
       }
       if (!cancelled && hasTestStarted) {
         heartbeatTimer = setTimeout(heartbeat, HEARTBEAT_INTERVAL_MS);
@@ -139,7 +141,7 @@ const ObservabilityPoller = () => {
         latestTimestampRef.current.set(currentRunId, responseLatest);
         if (!cancelled) dispatch(upsertMonitoringSeries(response));
       } catch (error) {
-        if (!cancelled) dispatch(setMonitoringError(error.message || '监控曲线查询失败'));
+        if (!cancelled) dispatch(setMonitoringError(error.message || translate('observability.seriesFailed')));
       }
       if (!cancelled && hasTestStarted && activeTab === 'monitoring') {
         seriesTimer = setTimeout(pollSeries, SERIES_INTERVAL_MS);
@@ -163,7 +165,7 @@ const ObservabilityPoller = () => {
       } catch (error) {
         completedRunsRef.current.delete(currentRunId);
         if (!cancelled) {
-          dispatch(setMonitoringError(error.message || '监控归档失败'));
+          dispatch(setMonitoringError(error.message || translate('observability.archiveFailed')));
           // 归档只有这一次机会：失败就把归档窗口丢了（manager 重启、Prometheus 抖一下都会失败）。
           // 过 30 秒再试一次；effect 重跑前一直有效。
           completeTimer = setTimeout(complete, COMPLETE_RETRY_MS);
@@ -195,6 +197,7 @@ const ObservabilityPoller = () => {
     enabled,
     hasTestStarted,
     selectedTargets,
+    translate,
   ]);
 
   return null;

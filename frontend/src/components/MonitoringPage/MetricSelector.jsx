@@ -1,5 +1,13 @@
 import { Alert, Checkbox, Collapse, Input, Modal, Space, Tag, Tooltip } from 'antd';
 import { useMemo, useState } from 'react';
+import { useLanguage } from '../../i18n';
+import { localizeBackendText } from '../../utils/backendMessages';
+import {
+  monitoringCategoryName,
+  monitoringMetricDescription,
+  monitoringMetricName,
+  monitoringSubcategoryName,
+} from '../../utils/monitoringI18n';
 
 const MetricSelector = ({
   open,
@@ -10,6 +18,7 @@ const MetricSelector = ({
   maxMetrics,
   containerExtraIds = [],
 }) => {
+  const { translate, lang } = useLanguage();
   const [draft, setDraft] = useState(selected);
   const [search, setSearch] = useState('');
   const [formError, setFormError] = useState('');
@@ -34,10 +43,11 @@ const MetricSelector = ({
       subcategories: (category.subcategories || []).map((subcategory) => ({
         ...subcategory,
         metrics: (subcategory.metrics || []).filter((metric) =>
-          `${metric.name} ${metric.metricId} ${category.name} ${subcategory.name}`.toLowerCase().includes(keyword)),
+          `${monitoringMetricName(metric, translate)} ${metric.metricId} ${monitoringCategoryName(category, translate)} ${monitoringSubcategoryName(subcategory, translate)}`
+            .toLowerCase().includes(keyword)),
       })).filter((subcategory) => subcategory.metrics.length > 0),
     })).filter((category) => category.subcategories.length > 0);
-  }, [catalog, search]);
+  }, [catalog, search, translate]);
 
   const toggle = (metricId, checked) => {
     setFormError('');
@@ -48,8 +58,12 @@ const MetricSelector = ({
 
   const handleOk = () => {
     if (overLimit) {
-      setFormError(`实际会采集 ${effectiveIds.length} 个指标，超过 manager 上限 ${limit} 个`
-        + `（含运行时自动追加的 ${reserved} 个容器指标）。请再取消勾选 ${effectiveIds.length - limit} 个。`);
+      setFormError(translate('metricSelector.overLimit', {
+        effective: effectiveIds.length,
+        limit,
+        reserved,
+        excess: effectiveIds.length - limit,
+      }));
       return;
     }
     setFormError('');
@@ -58,19 +72,19 @@ const MetricSelector = ({
 
   return (
     <Modal
-      title="选择监控指标"
+      title={translate('metricSelector.title')}
       open={open}
       width={720}
       onCancel={onCancel}
       onOk={handleOk}
-      okText="确定"
-      cancelText="取消"
+      okText={translate('metricSelector.ok')}
+      cancelText={translate('metricSelector.cancel')}
       destroyOnHidden={false}
     >
       <div style={{ marginBottom: 12, color: overLimit ? '#cf1322' : '#5f6672' }}>
-        已选 {draft.length} 个
-        {reserved > 0 ? `，运行时另自动追加 ${reserved} 个容器指标` : ''}
-        {limit > 0 ? ` / 上限 ${limit} 个` : ''}
+        {translate('metricSelector.selected', { count: draft.length })}
+        {reserved > 0 ? translate('metricSelector.reserved', { count: reserved }) : ''}
+        {limit > 0 ? translate('metricSelector.limit', { limit }) : ''}
       </div>
       {formError ? (
         <Alert type="error" showIcon style={{ marginBottom: 12 }} message={formError} />
@@ -79,12 +93,12 @@ const MetricSelector = ({
           type="warning"
           showIcon
           style={{ marginBottom: 12 }}
-          message={`已超过 manager 上限 ${limit} 个，确定前需要先取消勾选。`}
+          message={translate('metricSelector.overLimitWarning', { limit })}
         />
       ) : null}
       <Input.Search
         allowClear
-        placeholder="搜索中文名、英文名或 metricId"
+        placeholder={translate('metricSelector.searchPlaceholder')}
         value={search}
         onChange={(event) => setSearch(event.target.value)}
         style={{ marginBottom: 12 }}
@@ -92,23 +106,32 @@ const MetricSelector = ({
       <Collapse
         items={categories.map((category) => ({
           key: category.id,
-          label: category.name,
+          label: monitoringCategoryName(category, translate),
           children: (
             <Collapse
               ghost
               items={(category.subcategories || []).map((subcategory) => ({
                 key: `${category.id}-${subcategory.id}`,
-                label: subcategory.name,
+                label: monitoringSubcategoryName(subcategory, translate),
                 children: (
                   <Space direction="vertical" style={{ width: '100%' }}>
                     {(subcategory.metrics || []).map((metric) => (
-                      <Tooltip key={metric.metricId} title={metric.available ? metric.description : metric.unavailableReason}>
+                      <Tooltip
+                        key={metric.metricId}
+                        title={localizeBackendText(
+                          metric.available
+                            ? monitoringMetricDescription(metric, translate)
+                            : metric.unavailableReason,
+                          translate,
+                          lang
+                        )}
+                      >
                         <Checkbox
                           checked={draft.includes(metric.metricId)}
                           disabled={!metric.available}
                           onChange={(event) => toggle(metric.metricId, event.target.checked)}
                         >
-                          {metric.name} <Tag>{metric.unit}</Tag>
+                          {monitoringMetricName(metric, translate)} <Tag>{metric.unit}</Tag>
                         </Checkbox>
                       </Tooltip>
                     ))}

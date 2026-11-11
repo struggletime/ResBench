@@ -12,7 +12,10 @@ import {
   NAME_KEY_TO_TYPE,
   displayFaultName,
   pickI18n,
+  resolveFaultDisplayName,
+  resolveFaultKey,
 } from '../config/faultConfig';
+import { localizeBackendText } from './backendMessages';
 
 /** 命令里的 flag 与故障目录 paramName 的别名 */
 const PARAM_ALIASES = {
@@ -31,26 +34,26 @@ const PARAM_ALIASES = {
   'delay-ms': 'delay-ms',
 };
 
-/** 目录里没有对应定义时，命令 flag 的中文兜底名 */
-const RAW_FLAG_LABELS = {
-  timeout: '持续时间',
-  percent: '比例',
-  interface: '网卡',
-  'destination-ip': '目标 IP',
-  'mem-percent': '内存占用比例',
-  'memory-percent': '内存占用比例',
-  path: '路径',
-  'src-path': '源文件',
-  'dst-dir': '目标目录',
-  'file-path': '文件路径',
-  filepath: '文件路径',
-  mark: '权限标记',
-  'process-cmd': '进程命令',
-  signal: '信号',
-  count: '数量',
-  interval: '间隔',
-  threads: '线程数',
-  duration: '持续时间',
+/** 目录里没有对应定义时，命令 flag 的兜底显示名（走 i18n） */
+const RAW_FLAG_LABEL_KEYS = {
+  timeout: 'faultDetails.flag.timeout',
+  percent: 'faultDetails.flag.percent',
+  interface: 'faultDetails.flag.interface',
+  'destination-ip': 'faultDetails.flag.destination-ip',
+  'mem-percent': 'faultDetails.flag.mem-percent',
+  'memory-percent': 'faultDetails.flag.memory-percent',
+  path: 'faultDetails.flag.path',
+  'src-path': 'faultDetails.flag.src-path',
+  'dst-dir': 'faultDetails.flag.dst-dir',
+  'file-path': 'faultDetails.flag.file-path',
+  filepath: 'faultDetails.flag.filepath',
+  mark: 'faultDetails.flag.mark',
+  'process-cmd': 'faultDetails.flag.process-cmd',
+  signal: 'faultDetails.flag.signal',
+  count: 'faultDetails.flag.count',
+  interval: 'faultDetails.flag.interval',
+  threads: 'faultDetails.flag.threads',
+  duration: 'faultDetails.flag.duration',
 };
 
 export function findFaultDefinition(nameKey) {
@@ -75,12 +78,12 @@ function firstNumber(...values) {
   return null;
 }
 
-export function formatDateTime(epochMs) {
+export function formatDateTime(epochMs, lang) {
   const value = Number(epochMs);
   if (!Number.isFinite(value) || value <= 0) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString('zh-CN', {
+  return date.toLocaleString(lang === 'en' ? 'en-US' : 'zh-CN', {
     hour12: false,
     year: 'numeric',
     month: '2-digit',
@@ -91,10 +94,10 @@ export function formatDateTime(epochMs) {
   });
 }
 
-export function formatDuration(seconds) {
+export function formatDuration(seconds, translate) {
   const value = Number(seconds);
   if (!Number.isFinite(value) || value < 0) return '';
-  return `${value} 秒`;
+  return translate ? translate('faultDetails.seconds', { value }) : `${value} 秒`;
 }
 
 /** 归档故障在调度时的真实 groupKey：StartByFormService 会给空 groupKey 补 fault-<index>。 */
@@ -314,12 +317,13 @@ function paramLabel(def, rawName, translate, lang) {
     const aliasLabel = paramLabel(def, alias, translate, lang);
     if (aliasLabel && aliasLabel !== alias) return aliasLabel;
   }
-  return RAW_FLAG_LABELS[rawName] || rawName;
+  const fallbackKey = RAW_FLAG_LABEL_KEYS[rawName];
+  return fallbackKey ? translate(fallbackKey) : rawName;
 }
 
-function formatValue(value) {
-  if (value === true) return '是';
-  if (value === false) return '否';
+function formatValue(value, translate) {
+  if (value === true) return translate('faultDetails.yes');
+  if (value === false) return translate('faultDetails.no');
   if (value === undefined || value === null || value === '') return '—';
   if (Array.isArray(value)) return value.join(', ');
   if (typeof value === 'object') return JSON.stringify(value);
@@ -349,7 +353,7 @@ function buildParams(archivedParams, info, def, translate, lang) {
       return {
         key,
         label: paramLabel(def, key, translate, lang),
-        value: formatValue(params[key]),
+        value: formatValue(params[key], translate),
         unit: spec?.unit || '',
         fromCommand: false,
       };
@@ -362,7 +366,7 @@ function buildParams(archivedParams, info, def, translate, lang) {
       return {
         key: flag,
         label: paramLabel(def, flag, translate, lang),
-        value: formatValue(value),
+        value: formatValue(value, translate),
         unit: spec?.unit || '',
         fromCommand: true,
       };
@@ -382,12 +386,16 @@ export function buildFaultDetail(archived, info, translate, lang) {
     archived?.nameKey,
     info?.verification?.nameKey && info.verification.nameKey !== info.faultName
       ? info.verification.nameKey
-      : undefined
+      : undefined,
+    resolveFaultKey(archived),
+    resolveFaultKey(info)
   );
   const def = findFaultDefinition(nameKey);
   const catalogName = def ? displayFaultName(def, translate, lang) : '';
   const name = firstDefined(
     catalogName && catalogName !== nameKey ? catalogName : undefined,
+    resolveFaultDisplayName(info, translate, lang),
+    resolveFaultDisplayName(archived, translate, lang),
     info?.faultName,
     archived?.faultName,
     nameKey,
@@ -403,8 +411,17 @@ export function buildFaultDetail(archived, info, translate, lang) {
   );
   const startTime = firstNumber(info?.startTime);
   const endTime = firstNumber(info?.endTime);
-  const verification = normalizeVerification(info?.verification || archived?.verification);
-  const recoveryVerification = normalizeVerification(
+  const localizeVerification = (value) => {
+    const normalized = normalizeVerification(value);
+    if (!normalized || typeof normalized !== 'object') return normalized;
+    return {
+      ...normalized,
+      error: localizeBackendText(normalized.error, translate, lang),
+      summary: localizeBackendText(normalized.summary, translate, lang),
+    };
+  };
+  const verification = localizeVerification(info?.verification || archived?.verification);
+  const recoveryVerification = localizeVerification(
     info?.recoveryVerification || archived?.recoveryVerification
   );
 
@@ -417,8 +434,8 @@ export function buildFaultDetail(archived, info, translate, lang) {
     durationSeconds,
     startTime,
     endTime,
-    startTimeText: firstDefined(info?.startTimeFormat, formatDateTime(startTime)),
-    endTimeText: firstDefined(info?.endTimeFormat, formatDateTime(endTime)),
+    startTimeText: firstDefined(info?.startTimeFormat, formatDateTime(startTime, lang)),
+    endTimeText: firstDefined(info?.endTimeFormat, formatDateTime(endTime, lang)),
     verification,
     recoveryVerification,
     params: buildParams(archived?.params, info, def, translate, lang),

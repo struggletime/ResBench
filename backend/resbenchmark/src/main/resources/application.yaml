@@ -1,14 +1,22 @@
 # Agent host is resolved per request from the target database IP.
 
 # 故障编排合理性校验使用的 Neo4j 知识图谱。
-# 不配置 uri（或留空）时使用内置内存示例图谱，不需要 Neo4j 实例。
-# 配置后首次校验会校验连通性；连不上时接口返回 checked=false，不影响引擎其他功能。
-# 环境变量：RESBENCH_NEO4J_URI / RESBENCH_NEO4J_USERNAME / RESBENCH_NEO4J_PASSWORD /
-#           RESBENCH_NEO4J_DATABASE / RESBENCH_NEO4J_CONNECTION_TIMEOUT_MS
-# resbench:
-#   neo4j:
-#     uri: bolt://127.0.0.1:7687
-#     username: neo4j
-#     password: change-me
-#     database: neo4j
-#     connection-timeout-ms: 3000
+# 默认指向本机自带的 Neo4j（scripts/neo4j/install-neo4j.sh 安装并导入图谱）。
+# 图谱不可用时接口返回 checked=false，不影响引擎其他功能。
+# 密码优先取 RESBENCH_NEO4J_PASSWORD / NEO4J_PASSWORD，其次读 neo4j/.password。
+resbench:
+  neo4j:
+    uri: ${RESBENCH_NEO4J_URI:bolt://127.0.0.1:7687}
+    username: ${RESBENCH_NEO4J_USERNAME:neo4j}
+    password: ${RESBENCH_NEO4J_PASSWORD:}
+    database: ${RESBENCH_NEO4J_DATABASE:neo4j}
+    connection-timeout-ms: ${RESBENCH_NEO4J_CONNECTION_TIMEOUT_MS:3000}
+  kg:
+    # Python 解释器；为空时按 -Dresbench.python → RESBENCH_PYTHON → python3 解析。
+    python: ${RESBENCH_KG_PYTHON:}
+    script: ${RESBENCH_KG_SCRIPT:kg_orchestration.py}
+    graph-version: ${RESBENCH_KG_GRAPH_VERSION:resbench-kg-v1}
+    relation-mode: ${RESBENCH_KG_RELATION_MODE:strict}
+    timeout-seconds: ${RESBENCH_KG_TIMEOUT_SECONDS:120}
+    password-file: ${RESBENCH_KG_PASSWORD_FILE:}
+    keep-artifacts: ${RESBENCH_KG_KEEP_ARTIFACTS:false}

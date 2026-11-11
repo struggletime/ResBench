@@ -76,43 +76,43 @@ const ComparisonConfigSection = ({ selectedRecords }) => {
           <div className={styles.configGrid}>
             <div className={styles.field}>
               <span className={styles.label}>
-                {translate('comparison.workload')}：
+                {translate('comparison.workload')}{translate('common.colon')}
               </span>
               <span className={styles.value}>{firstRecord.workloadType}</span>
             </div>
             <div className={styles.field}>
               <span className={styles.label}>
-                {translate('comparison.warehouses')}：
+                {translate('comparison.warehouses')}{translate('common.colon')}
               </span>
               <span className={styles.value}>{firstRecord.warehouses}</span>
             </div>
             <div className={styles.field}>
               <span className={styles.label}>
-                {translate('comparison.concurrency')}：
+                {translate('comparison.concurrency')}{translate('common.colon')}
               </span>
               <span className={styles.value}>{firstRecord.concurrency}</span>
             </div>
             <div className={styles.field}>
               <span className={styles.label}>
-                {translate('comparison.readWriteRatio')}：
+                {translate('comparison.readWriteRatio')}{translate('common.colon')}
               </span>
               <span className={styles.value}>{firstRecord.readWriteRatio}</span>
             </div>
             <div className={styles.field}>
               <span className={styles.label}>
-                {translate('comparison.duration')}：
+                {translate('comparison.duration')}{translate('common.colon')}
               </span>
               <span className={styles.value}>{firstRecord.duration}s</span>
             </div>
             <div className={styles.field}>
               <span className={styles.label}>
-                {translate('comparison.threads')}：
+                {translate('comparison.threads')}{translate('common.colon')}
               </span>
               <span className={styles.value}>{firstRecord.threads}</span>
             </div>
             <div className={styles.field}>
               <span className={styles.label}>
-                {translate('comparison.runMode')}：
+                {translate('comparison.runMode')}{translate('common.colon')}
               </span>
               <span className={styles.value}>{firstRecord.runMode}</span>
             </div>

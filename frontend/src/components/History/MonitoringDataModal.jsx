@@ -4,6 +4,7 @@ import MetricChart from '../MonitoringPage/MetricChart';
 import { fetchMonitoringCatalog, fetchMonitoringHistorySeries } from '../../api/monitoringApi';
 import { fetchFaultInjectInfo } from '../../api/suiteApi';
 import { useLanguage } from '../../i18n';
+import { monitoringMetricName } from '../../utils/monitoringI18n';
 
 /**
  * 历史记录里的「监控数据」弹窗：把这个 runId 归档下来的 Prometheus 曲线直接摊开。
@@ -14,11 +15,11 @@ import { useLanguage } from '../../i18n';
  * 那种情况接口返回 404，这里只提示，不报错。
  */
 const CATEGORY_ORDER = ['container', 'host', 'database', 'ebpf'];
-const CATEGORY_NAMES = {
-  container: '容器',
-  host: '主机',
-  database: '数据库',
-  ebpf: 'eBPF',
+const CATEGORY_NAME_KEYS = {
+  container: 'monitoringPage.category.container',
+  host: 'monitoringPage.category.host',
+  database: 'monitoringPage.category.database',
+  ebpf: 'monitoringPage.category.ebpf',
 };
 
 // 指标目录只用来把 metricId 翻成中文名和单位；取不到就退回 metricId，不影响出图。
@@ -52,7 +53,7 @@ function categoryOf(metricId, metric) {
 }
 
 const MonitoringDataModal = ({ run, onClose }) => {
-  const { lang } = useLanguage();
+  const { lang, translate } = useLanguage();
   const isZh = lang !== 'en';
   const runId = run?.runId || run?.historyName || '';
   const [loading, setLoading] = useState(true);
@@ -130,7 +131,7 @@ const MonitoringDataModal = ({ run, onClose }) => {
         const meta = metricMeta.get(metricId);
         return {
           metricId,
-          name: meta?.name || metricId,
+          name: monitoringMetricName({ ...meta, metricId }, translate),
           unit: meta?.unit || series[0]?.unit || '',
           category: categoryOf(metricId, meta),
           seriesCount: series.length,
@@ -141,7 +142,7 @@ const MonitoringDataModal = ({ run, onClose }) => {
         const byCategory = CATEGORY_ORDER.indexOf(left.category) - CATEGORY_ORDER.indexOf(right.category);
         return byCategory !== 0 ? byCategory : left.name.localeCompare(right.name);
       });
-  }, [metricMeta, seriesByMetric]);
+  }, [metricMeta, seriesByMetric, translate]);
 
   const groups = useMemo(() => {
     const byCategory = new Map();
@@ -151,10 +152,10 @@ const MonitoringDataModal = ({ run, onClose }) => {
     });
     return Array.from(byCategory.entries()).map(([categoryId, list]) => ({
       categoryId,
-      categoryName: CATEGORY_NAMES[categoryId] || categoryId,
+      categoryName: CATEGORY_NAME_KEYS[categoryId] ? translate(CATEGORY_NAME_KEYS[categoryId]) : categoryId,
       metrics: list,
     }));
-  }, [metrics]);
+  }, [metrics, translate]);
 
   const totalPoints = useMemo(
     () => metrics.reduce((sum, metric) => sum + metric.pointCount, 0),

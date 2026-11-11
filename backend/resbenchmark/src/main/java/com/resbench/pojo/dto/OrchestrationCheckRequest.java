@@ -1,21 +1,18 @@
 package com.resbench.pojo.dto;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 /**
  * 故障编排合理性校验请求。
  *
- * <p>与 {@code POST /web/bench/startByForm} 使用完全相同的故障列表结构，
- * 前端直接把「开始测试」里的 {@code faults} 数组传过来即可。
+ * <p>与 {@code POST /web/bench/startByForm} 使用完全相同的表单结构：
+ * 校验需要按 startByForm 的方式生成故障编排 XML 与主配置 XML，
+ * 因此前端直接把「开始测试」的整个请求体传过来。
  */
 @Data
-public class OrchestrationCheckRequest {
-
-  /** 部署环境标识（manager 转发时使用；引擎侧不参与判定）。 */
-  private String envInfo;
-
-  private List<StartByFormRequest.FaultItem> faults = new ArrayList<>();
+@EqualsAndHashCode(callSuper = true)
+@ToString(callSuper = true)
+public class OrchestrationCheckRequest extends StartByFormRequest {
 }

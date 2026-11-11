@@ -68,6 +68,11 @@ __pycache__/
 *.db
 *.db-journal
 
+# Neo4j installed at runtime (tar, data, generated password)
+/neo4j/
+# Locally downloaded Neo4j tarball used for offline installs
+/neo4j-download/
+
 # Backend generated configs & temp files
 backend/resbenchmark/config/generated/
 backend/resbenchmark/tmp/

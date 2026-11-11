@@ -63,7 +63,7 @@ const Header = ({ topTab, activeTab }) => {
             return subTitle;
         }
 
-        return 'unknown type';
+        return translate('common.unknownType');
     }
     return (
         <div>

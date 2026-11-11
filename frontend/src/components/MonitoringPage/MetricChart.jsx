@@ -1,5 +1,8 @@
 import ReactECharts from 'echarts-for-react';
 import { Empty } from 'antd';
+import { useLanguage } from '../../i18n';
+import { resolveFaultDisplayName } from '../../config/faultConfig';
+import { monitoringMetricName } from '../../utils/monitoringI18n';
 import styles from './MonitoringPage.module.css';
 
 // 伪文件系统挂载点不是真实磁盘占用：proc/sysfs/cgroup 这类 size=0 的挂载点会被
@@ -29,6 +32,8 @@ function seriesName(series, index) {
 }
 
 const MetricChart = ({ metric, series, faultRegions = [] }) => {
+  const { translate, lang } = useLanguage();
+  const metricName = monitoringMetricName(metric, translate);
   const drawable = (series || []).filter((item) => (
     Array.isArray(item.points) && item.points.length > 0 && !isPseudoFilesystem(item)
   ));
@@ -37,10 +42,10 @@ const MetricChart = ({ metric, series, faultRegions = [] }) => {
     return (
       <section className={styles.chartCard}>
         <div className={styles.chartHeader}>
-          <span>{metric.name}</span>
+          <span>{metricName}</span>
           <span className={styles.unit}>{metric.unit}</span>
         </div>
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前时间范围暂无数据" />
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={translate('metricChart.noData')} />
       </section>
     );
   }
@@ -60,7 +65,7 @@ const MetricChart = ({ metric, series, faultRegions = [] }) => {
     xAxis: { type: 'time' },
     yAxis: { type: 'value', name: metric.unit, scale: true },
     dataZoom: [{ type: 'inside' }, { type: 'slider', height: 18, bottom: 8 }],
-    toolbox: { right: 8, feature: { saveAsImage: { title: '导出' } } },
+    toolbox: { right: 8, feature: { saveAsImage: { title: translate('metricChart.export') } } },
     series: drawable.map((item, index) => ({
       name: seriesName(item, index),
       type: 'line',
@@ -77,7 +82,10 @@ const MetricChart = ({ metric, series, faultRegions = [] }) => {
               ? region.endTime
               : Math.max(region.startTime, lastX);
             return [
-              { name: region.faultName || '故障', xAxis: region.startTime },
+              {
+                name: resolveFaultDisplayName(region, translate, lang) || translate('metricChart.faultFallback'),
+                xAxis: region.startTime,
+              },
               { xAxis: end },
             ];
           }),
@@ -88,7 +96,7 @@ const MetricChart = ({ metric, series, faultRegions = [] }) => {
   return (
     <section className={styles.chartCard}>
       <div className={styles.chartHeader}>
-        <span>{metric.name}</span>
+        <span>{metricName}</span>
         <span className={styles.unit}>{metric.unit}</span>
       </div>
       <ReactECharts option={option} style={{ height: 300 }} notMerge={false} lazyUpdate />

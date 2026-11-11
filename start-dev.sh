@@ -108,6 +108,26 @@ mvn -q clean compile dependency:build-classpath \
     -DskipTests -Dmaven.gitcommitid.skip=true \
     -P opengauss
 
+# ----  Step 2.5: Ensure Neo4j knowledge graph (non-fatal)  ----
+# 故障编排校验依赖 Neo4j；装不上/起不来时只告警，Engine 仍能启动，
+# 校验接口会返回 checked=false。
+if [ "${RESBENCH_SKIP_NEO4J:-0}" != "1" ]; then
+    log "Ensuring Neo4j for orchestration check..."
+    if bash "$ROOT/scripts/neo4j/install-neo4j.sh" >> "$LOGS_DIR/neo4j-install.log" 2>&1; then
+        if ! bash "$ROOT/scripts/neo4j/start-neo4j.sh" >> "$LOGS_DIR/neo4j.log" 2>&1; then
+            log "WARNING: Neo4j 未就绪，编排校验会返回 checked=false（见 $LOGS_DIR/neo4j.log）"
+        fi
+    else
+        log "WARNING: Neo4j 安装失败，编排校验不可用（见 $LOGS_DIR/neo4j-install.log）"
+    fi
+fi
+# Engine 子进程通过环境变量拿密码；脚本仍会兜底读取 neo4j/.password。
+if [ -f "$ROOT/neo4j/.password" ]; then
+    NEO4J_PASSWORD="$(cat "$ROOT/neo4j/.password")"
+    export NEO4J_PASSWORD
+    export RESBENCH_NEO4J_PASSWORD="$NEO4J_PASSWORD"
+fi
+
 # ----  Step 3: Start resbenchmark on port 8080  ----
 start_background "resbenchmark-server" "$RESBENCHMARK_DIR" 8080 \
     mvn exec:java \

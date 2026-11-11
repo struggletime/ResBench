@@ -254,15 +254,15 @@ const BenchmarksqlConfig = () => {
       {verifyResult && (
         <div className={`${styles.verifyResultRow} ${verifyClass(verifyResult.status)}`}>
           <span className={styles.verifyConclusion}>
-            {translate("Workload.benchmarksql.verifyConclusion")}：
+            {translate("Workload.benchmarksql.verifyConclusion")}{translate('common.colon')}
             {verifyHeadline(verifyResult.status)}
           </span>
           <span>
-            {translate("Workload.benchmarksql.verifyActual")}：
+            {translate("Workload.benchmarksql.verifyActual")}{translate('common.colon')}
             {verifyResult.data?.actualWarehouses ?? "—"}
           </span>
           <span>
-            {translate("Workload.benchmarksql.verifyConfigured")}：
+            {translate("Workload.benchmarksql.verifyConfigured")}{translate('common.colon')}
             {verifyResult.data?.configuredWarehouses ?? "—"}
           </span>
           {verifyResult.message && (

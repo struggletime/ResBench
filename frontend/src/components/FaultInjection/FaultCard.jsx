@@ -1,6 +1,8 @@
 import faultCardStyle from "./FaultCard.module.css";
+import { useLanguage } from "../../i18n";
 
 const FaultCard = ({ value, order, type, isSelected, onClick }) => {
+  const { translate } = useLanguage();
   return (
     <div
       className={`${faultCardStyle.card} ${isSelected ? faultCardStyle.active : ''}`}
@@ -15,8 +17,8 @@ const FaultCard = ({ value, order, type, isSelected, onClick }) => {
       </div>
       <span className={faultCardStyle.text}>{value.name}</span>
       {value.hasCheck === false && (
-        <span className={faultCardStyle.noCheckTag} title="未配置自检，注入后无法验证效果">
-          无自检
+        <span className={faultCardStyle.noCheckTag} title={translate('faultCard.noCheckHint')}>
+          {translate('faultCard.noCheck')}
         </span>
       )}
     </div>

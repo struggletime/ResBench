@@ -12,6 +12,7 @@ import {
   Legend,
 } from 'recharts';
 import { useLanguage } from '../../i18n';
+import { resolveFaultDisplayName } from '../../config/faultConfig';
 import { useSelector } from 'react-redux';
 import { CHANNEL_STATE, runChannelState } from '../../utils/channelState';
 import { buildFaultDetails } from '../../utils/faultDetails';
@@ -111,7 +112,7 @@ const RealTimeThroughputChart = () => {
           x2: data[lastIdx].time,
           firstIdx,
           lastIdx,
-          label: fault.faultName || '',
+          label: resolveFaultDisplayName(fault, translate, lang),
           id: fault.faultID,
           groupKey: fault.groupKey || '',
           // 保留原始 faultRegion，点击红带时用它去关联完整注入信息
@@ -152,7 +153,7 @@ const RealTimeThroughputChart = () => {
       faults: m.faults,
     }));
     return result;
-  }, [faultRegions, data]);
+  }, [faultRegions, data, translate, lang]);
 
   /**
    * 长连接中途断开时，在图上打一条竖线 —— 落点是**第一次观测到回退**的那个采样点。

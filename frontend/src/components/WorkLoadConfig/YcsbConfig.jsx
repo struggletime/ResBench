@@ -134,7 +134,7 @@ const YcsbConfig = () => {
             value={reduxConfig.duration}
             onChange={handleInputChange}
             className={styles.input}
-            placeholder="optional"
+            placeholder={translate('Workload.ycsb.optional')}
           />
         </div>
         <div className={styles.formGroup}>
@@ -146,7 +146,7 @@ const YcsbConfig = () => {
             value={reduxConfig.operationCount}
             onChange={handleInputChange}
             className={styles.input}
-            placeholder="optional"
+            placeholder={translate('Workload.ycsb.optional')}
           />
         </div>
       </div>
@@ -181,7 +181,7 @@ const YcsbConfig = () => {
             value={reduxConfig.readProportion}
             onChange={handleInputChange}
             className={styles.input}
-            placeholder="e.g. 1.0"
+            placeholder={translate('Workload.ycsb.example', { value: '1.0' })}
           />
         </div>
         <div className={styles.formGroup}>
@@ -193,7 +193,7 @@ const YcsbConfig = () => {
             value={reduxConfig.updateProportion}
             onChange={handleInputChange}
             className={styles.input}
-            placeholder="e.g. 0.05"
+            placeholder={translate('Workload.ycsb.example', { value: '0.05' })}
           />
         </div>
       </div>
@@ -208,7 +208,7 @@ const YcsbConfig = () => {
             value={reduxConfig.insertProportion}
             onChange={handleInputChange}
             className={styles.input}
-            placeholder="e.g. 0.05"
+            placeholder={translate('Workload.ycsb.example', { value: '0.05' })}
           />
         </div>
         <div className={styles.formGroup}>
@@ -220,7 +220,7 @@ const YcsbConfig = () => {
             value={reduxConfig.scanProportion}
             onChange={handleInputChange}
             className={styles.input}
-            placeholder="e.g. 0.1"
+            placeholder={translate('Workload.ycsb.example', { value: '0.1' })}
           />
         </div>
       </div>

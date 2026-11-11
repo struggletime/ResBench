@@ -169,6 +169,75 @@ public class StartByFormService {
   }
 
   /**
+   * 只生成编排校验需要的两份 XML（故障编排 + 主配置），不启动测试。
+   *
+   * <p>复用 {@link #prepare} 的模板选择与 XML 写入逻辑，输出到
+   * {@code config/generated/check/<runId>/}，由调用方在校验结束后
+   * {@link #cleanup(PreparedCheck)}。worker XML 也一并生成，保证主配置里的
+   * {@code xi:include} 在需要展开时可见。
+   */
+  public PreparedCheck prepareForCheck(StartByFormRequest request) throws Exception {
+    validateRequest(request);
+
+    String workloadName = normalizeWorkloadName(request.getWorkload().getName());
+    String dbType = normalizeLower(request.getDbType());
+    boolean isTpcc = "tpcc".equals(workloadName);
+    boolean isMysql = "mysql".equals(dbType);
+    boolean isPostgres = "postgresql".equals(dbType);
+    boolean isOceanBase = "oceanbase".equals(dbType);
+    boolean isGaussdb = "gaussdb".equals(dbType);
+    String templatePath = isOceanBase ? OCEANBASE_SMALLBANK_TEMPLATE
+        : isGaussdb ? (isTpcc ? GAUSSDB_TPCC_TEMPLATE : GAUSSDB_SMALLBANK_TEMPLATE)
+        : isTpcc ? TPCC_TEMPLATE : SMALLBANK_TEMPLATE;
+    String workerPrefix = isTpcc ? "tpcc-worker-" : "smallbank-worker-";
+    String runId = "check-" + LocalDateTime.now().format(RUN_ID_FORMATTER) + "-"
+        + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+
+    Path checkRoot = Path.of(GENERATED_ROOT).resolve("check").resolve(runId);
+    Path dbDirectory = checkRoot.resolve(dbType);
+    Files.createDirectories(dbDirectory);
+
+    String workerFileName = workerPrefix + runId + ".xml";
+    String faultFileName = "general-fault-case-" + runId + ".xml";
+    String configFileName = runId + ".xml";
+
+    Path workerPath = checkRoot.resolve(workerFileName);
+    Path faultPath = checkRoot.resolve(faultFileName);
+    Path configPath = dbDirectory.resolve(configFileName);
+
+    List<FaultScheduleItem> scheduledFaults = buildScheduledFaults(request);
+
+    // 校验针对「已声明的时刻」做静态判定；auto-timing 会在运行时移动区间，
+    // 且校验脚本的 native 结构要求 testSuite 不带 mode 属性。临时 XML 固定用 fixed-time。
+    String autoTimingMode = "fixed-time";
+    Double cvThreshold = request.getCvThreshold();
+    writeWorkerXml(workerPath, request, isTpcc, autoTimingMode, cvThreshold);
+    writeFaultScheduleXml(faultPath, scheduledFaults, autoTimingMode);
+    writeConfigXml(configPath, request, scheduledFaults, "../" + workerFileName, templatePath,
+        isTpcc, isMysql, isPostgres, isOceanBase, isGaussdb, autoTimingMode);
+
+    return new PreparedCheck(checkRoot, faultPath, configPath, runId);
+  }
+
+  /** 删除一次编排校验生成的临时目录；删除失败只记日志。 */
+  public void cleanup(PreparedCheck prepared) {
+    if (prepared == null || prepared.directory() == null) {
+      return;
+    }
+    try (java.util.stream.Stream<Path> paths = Files.walk(prepared.directory())) {
+      paths.sorted(java.util.Comparator.reverseOrder()).forEach(path -> {
+        try {
+          Files.deleteIfExists(path);
+        } catch (IOException e) {
+          LOG.warn("清理编排校验临时文件失败：{}", path, e);
+        }
+      });
+    } catch (IOException e) {
+      LOG.warn("遍历编排校验临时目录失败：{}", prepared.directory(), e);
+    }
+  }
+
+  /**
    * 组合运行名（= historyName）。前缀必须保持 workload 名不变，否则
    * /bench/result、/bench/event、history/list 的 startsWith(testSuiteName) 过滤会查不到这一轮。
    * 表单给了 testName（完整测试名，例如 og-local_combo-A）时追加在前缀之后，便于检索归档。
@@ -1679,6 +1748,9 @@ public class StartByFormService {
   }
 
   public record GeneratedStart(String[] args, StartByFormResponse response) {}
+
+  /** 编排校验临时产物：目录、故障编排 XML、主配置 XML。 */
+  public record PreparedCheck(Path directory, Path planPath, Path configPath, String runId) {}
 
   private record FaultTemplate(
       String description,

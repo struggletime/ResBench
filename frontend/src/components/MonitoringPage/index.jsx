@@ -20,6 +20,8 @@ import {
 } from '../../store/modules/observabilitySlice';
 import MetricChart from './MetricChart';
 import MetricSelector from './MetricSelector';
+import { useLanguage } from '../../i18n';
+import { localizeBackendText } from '../../utils/backendMessages';
 import styles from './MonitoringPage.module.css';
 
 const HOST_CATEGORY_ORDER = ['host', 'database', 'ebpf'];
@@ -27,6 +29,7 @@ const CONTAINER_CATEGORY_ORDER = ['container', 'host', 'database'];
 
 const MonitoringPage = () => {
   const dispatch = useDispatch();
+  const { translate, lang } = useLanguage();
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [messageApi, contextHolder] = message.useMessage();
   const observability = useSelector((state) => state.observability);
@@ -68,14 +71,14 @@ const MonitoringPage = () => {
     const categoryOrder = containerMode ? CONTAINER_CATEGORY_ORDER : HOST_CATEGORY_ORDER;
     return categoryOrder.map((categoryId) => ({
       categoryId,
-      categoryName: categoryId === 'host' ? '主机'
-        : categoryId === 'database' ? '数据库'
-          : categoryId === 'container' ? '容器' : 'eBPF',
+      categoryName: categoryId === 'host' ? translate('monitoringPage.category.host')
+        : categoryId === 'database' ? translate('monitoringPage.category.database')
+          : categoryId === 'container' ? translate('monitoringPage.category.container') : 'eBPF',
       metrics: displayMetricIds
         .map((metricId) => metricMap.get(metricId))
         .filter((metric) => metric?.category === categoryId),
     })).filter((group) => group.metrics.length > 0);
-  }, [containerMode, displayMetricIds, metricMap]);
+  }, [containerMode, displayMetricIds, metricMap, translate]);
 
   useEffect(() => {
     if (!observability.selectedRunId && selectedRunId) dispatch(setSelectedRunId(selectedRunId));
@@ -94,10 +97,10 @@ const MonitoringPage = () => {
         if (!cancelled) dispatch(upsertMonitoringSeries(response));
       })
       .catch((error) => {
-        if (!cancelled && !isNotFound(error)) messageApi.error(error.message || '历史监控曲线加载失败');
+        if (!cancelled && !isNotFound(error)) messageApi.error(error.message || translate('monitoringPage.loadFailed'));
       });
     return () => { cancelled = true; };
-  }, [currentRunId, dispatch, hasTestStarted, messageApi, observability.seriesByRunId, selectedRunId]);
+  }, [currentRunId, dispatch, hasTestStarted, messageApi, observability.seriesByRunId, selectedRunId, translate]);
 
   // 故障窗口不在监控归档里：看历史轮次时按 runId 去引擎取一次注入记录（批量跑的结果也走这里）。
   // 查不到就留空 —— 曲线照常展示，只是没有红色阴影。
@@ -131,7 +134,7 @@ const MonitoringPage = () => {
         const response = await fetchMonitoringHistorySeries(runId);
         dispatch(upsertMonitoringSeries(response));
       } catch (error) {
-        if (!isNotFound(error)) messageApi.error(error.message || '历史监控曲线加载失败');
+        if (!isNotFound(error)) messageApi.error(error.message || translate('monitoringPage.loadFailed'));
       }
     }
   };
@@ -139,22 +142,26 @@ const MonitoringPage = () => {
   const handleDelete = () => {
     if (!selectedSession || ['ACTIVE', 'PENDING', 'ARMING', 'FINALIZING'].includes(selectedSession.status)) return;
     Modal.confirm({
-      title: '删除监控数据和曲线？',
-      content: `将删除 ${selectedRunId} 的监控数据，ResBench 原测试记录、TPS、故障、评分和报告不会删除。此操作不可恢复。`,
-      okText: '删除',
+      title: translate('monitoringPage.deleteTitle'),
+      content: translate('monitoringPage.deleteContent', { runId: selectedRunId }),
+      okText: translate('common.delete'),
       okButtonProps: { danger: true },
-      cancelText: '取消',
+      cancelText: translate('common.cancel'),
       onOk: async () => {
         await deleteMonitoringHistory(selectedRunId);
         dispatch(clearMonitoringRun(selectedRunId));
         dispatch(setMonitoringHistory(await fetchMonitoringHistory()));
-        messageApi.success('监控数据已删除');
+        messageApi.success(translate('monitoringPage.deleted'));
       },
     });
   };
 
-  const status = selectedSession?.status || (hasTestStarted ? '准备中' : '无测试');
-  const dataStatus = observability.error ? '部分缺失' : observability.lastUpdatedAt ? '正常' : '等待数据';
+  const status = selectedSession?.status || (hasTestStarted ? translate('monitoringPage.status.preparing') : translate('monitoringPage.status.noTest'));
+  const dataStatus = observability.error
+    ? translate('monitoringPage.dataStatus.partial')
+    : observability.lastUpdatedAt
+      ? translate('monitoringPage.dataStatus.normal')
+      : translate('monitoringPage.dataStatus.waiting');
   const seriesForRun = observability.seriesByRunId[selectedRunId] || {};
   const deleteDisabled = !selectedSession || ['ACTIVE', 'PENDING', 'ARMING', 'FINALIZING'].includes(selectedSession.status);
 
@@ -164,7 +171,7 @@ const MonitoringPage = () => {
       <div className={styles.toolbar}>
         <Space wrap size="middle">
           <Space>
-            <span>启用监控</span>
+            <span>{translate('monitoringPage.enable')}</span>
             <Switch
               checked={observability.enabled}
               onChange={(checked) => dispatch(setMonitoringEnabled(checked))}
@@ -173,7 +180,7 @@ const MonitoringPage = () => {
           <Select
             mode="multiple"
             style={{ minWidth: 210 }}
-            placeholder="目标节点"
+            placeholder={translate('monitoringPage.targetPlaceholder')}
             value={observability.selectedTargets}
             options={(observability.capabilities?.targets || []).map((target) => ({
               value: target.targetId,
@@ -182,26 +189,34 @@ const MonitoringPage = () => {
             onChange={(value) => dispatch(setSelectedTargets(value))}
           />
           <Button onClick={() => setSelectorOpen(true)}>
-            选择指标（{observability.selectedMetricIds.length}）
+            {translate('monitoringPage.selectMetrics', { count: observability.selectedMetricIds.length })}
           </Button>
-          <Button type="primary" onClick={() => messageApi.success('监控配置已保存')}>保存</Button>
+          <Button type="primary" onClick={() => messageApi.success(translate('monitoringPage.configSaved'))}>
+            {translate('monitoringPage.save')}
+          </Button>
           <Select
             style={{ minWidth: 230 }}
-            placeholder="测试记录"
+            placeholder={translate('monitoringPage.runPlaceholder')}
             value={selectedRunId || undefined}
             onChange={handleRunChange}
             options={[
-              ...(currentRunId ? [{ value: currentRunId, label: `${currentRunId}${hasTestStarted ? '（运行中）' : ''}` }] : []),
+              ...(currentRunId ? [{
+                value: currentRunId,
+                label: `${currentRunId}${hasTestStarted ? translate('monitoringPage.runningSuffix') : ''}`,
+              }] : []),
               ...observability.history
                 .filter((item) => item.runId !== currentRunId)
                 .map((item) => ({ value: item.runId, label: item.runId })),
             ]}
           />
-          <Button danger disabled={deleteDisabled} onClick={handleDelete}>删除监控数据</Button>
+          <Button danger disabled={deleteDisabled} onClick={handleDelete}>
+            {translate('monitoringPage.deleteData')}
+          </Button>
         </Space>
         <div className={styles.statusLine}>
-          运行：{selectedRunId || '-'} <Tag>{status}</Tag> 数据：<Tag color={observability.error ? 'orange' : 'green'}>{dataStatus}</Tag>
-          {containerMode && <Tag color="blue">容器：{containerName}</Tag>}
+          {translate('monitoringPage.runLabel')}{selectedRunId || '-'} <Tag>{status}</Tag>{' '}
+          {translate('monitoringPage.dataLabel')}<Tag color={observability.error ? 'orange' : 'green'}>{dataStatus}</Tag>
+          {containerMode && <Tag color="blue">{translate('monitoringPage.containerLabel')}{containerName}</Tag>}
         </div>
       </div>
 
@@ -212,15 +227,15 @@ const MonitoringPage = () => {
           type="error"
           showIcon
           style={{ marginBottom: 18 }}
-          message="监控采集异常"
-          description={observability.error}
+          message={translate('monitoringPage.errorTitle')}
+          description={localizeBackendText(observability.error, translate, lang)}
         />
       ) : null}
 
       {!observability.enabled && !selectedSession ? (
-        <div className={styles.placeholder}>开启监控并选择指标后，压测期间将在此展示真实曲线。</div>
+        <div className={styles.placeholder}>{translate('monitoringPage.emptyDisabled')}</div>
       ) : groupedMetrics.length === 0 ? (
-        <div className={styles.placeholder}>请选择需要监控的指标。</div>
+        <div className={styles.placeholder}>{translate('monitoringPage.emptyNoMetrics')}</div>
       ) : (
         groupedMetrics.map((group) => (
           <section key={group.categoryId} className={styles.categorySection}>

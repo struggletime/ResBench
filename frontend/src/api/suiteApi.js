@@ -1,4 +1,5 @@
 import { getEnvInfo, request } from "./client";
+import { translateText } from "../i18n";
 
 export async function fetchDatabaseTypes(deploymentType) {
   return request("/suite/dbtype", {
@@ -28,13 +29,14 @@ export async function startTestByForm(body) {
   });
 }
 
-// 故障编排合理性校验：基于 Neo4j 知识图谱检查同时注入的故障是否互斥/重复
-export async function checkFaultOrchestration(faults) {
+// 故障编排合理性校验：按 startByForm 同样的表单生成两份 XML，
+// 交给引擎调用 kg_orchestration.py 查询 Neo4j 知识图谱。
+export async function checkFaultOrchestration(body) {
   return request("/suite/fault/orchestration/check", {
     method: "POST",
     body: {
       envInfo: getEnvInfo(),
-      faults,
+      ...body,
     },
   });
 }
@@ -261,7 +263,7 @@ export async function exportHistoryArchive(historyName, include = HISTORY_EXPORT
     } catch {
       // 读取失败时忽略，用状态码兜底
     }
-    throw new Error(detail || `导出失败：HTTP ${response.status}`);
+    throw new Error(detail || translateText('history.exportHttpError', { status: response.status }));
   }
 
   const contentType = response.headers.get("Content-Type") || "";
@@ -283,7 +285,7 @@ export async function exportHistoryArchive(historyName, include = HISTORY_EXPORT
     } catch {
       // 读取失败时用 Content-Type 兜底
     }
-    throw new Error(detail || `导出失败：服务端未返回 zip（Content-Type: ${contentType || 'unknown'}）`);
+    throw new Error(detail || translateText('history.exportNotZip', { contentType: contentType || 'unknown' }));
   }
 
   const blob = await response.blob();

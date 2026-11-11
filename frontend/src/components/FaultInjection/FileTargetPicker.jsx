@@ -1,19 +1,12 @@
 import React, { useState } from "react";
 import { useSelector } from "react-redux";
 import { fetchFileFaultTargets } from "../../api/suiteApi";
+import { useLanguage } from "../../i18n";
 import styles from "./FileTargetPicker.module.css";
 
 // 只有路径类参数才挂这个按钮。按 paramName 判断，不按 nameKey 硬编码 ——
 // 这样以后新增 file/disk 故障自动就有；引擎侧接了别的数据库（加一个探针）这里也不用改。
 const PATH_PARAMS = new Set(["filepath", "src-path", "file-path", "dst-dir", "path"]);
-
-// 文案暂时写中文；等定稿再补 i18n key（这份面板是新增的，locals.jsx 里还没有对应的 key）。
-const TEXT = {
-  trigger: "选择文件",
-  title: "目标文件（来自当前库的实际结构）",
-  unavailable: "拿不到文件清单",
-  noWorkload: "还没选负载 —— 引擎要靠负载的 DDL 才知道哪些表算数",
-};
 
 function humanBytes(bytes) {
   if (bytes === null || bytes === undefined) {
@@ -25,13 +18,13 @@ function humanBytes(bytes) {
   return `${bytes} B`;
 }
 
-function itemMeta(item) {
+function itemMeta(item, translate) {
   const parts = [];
   const size = humanBytes(item.bytes);
   if (size) parts.push(size);
-  if (item.segments) parts.push(`共 ${item.segments} 段`);
+  if (item.segments) parts.push(translate('filePicker.segments', { count: item.segments }));
   if (item.scans !== null && item.scans !== undefined) {
-    parts.push(`${item.scans.toLocaleString()} 次扫描`);
+    parts.push(translate('filePicker.scans', { count: item.scans.toLocaleString() }));
   }
   return parts.join(" · ");
 }
@@ -47,6 +40,7 @@ function itemMeta(item) {
  *   onPick(path) 用户选中一条时回调，由调用方写进自己的 state
  */
 const FileTargetPicker = ({ nameKey, paramName, level, onPick }) => {
+  const { translate } = useLanguage();
   const database = useSelector((state) => state.database);
   const workload = useSelector((state) => state.workload);
 
@@ -69,7 +63,7 @@ const FileTargetPicker = ({ nameKey, paramName, level, onPick }) => {
       return;
     }
     if (!workload.workload) {
-      setError(TEXT.noWorkload);
+      setError(translate('filePicker.noWorkload'));
       setData(null);
       return;
     }
@@ -85,7 +79,7 @@ const FileTargetPicker = ({ nameKey, paramName, level, onPick }) => {
       });
       if (!body || body.success === false) {
         setData(null);
-        setError(body?.message || TEXT.unavailable);
+        setError(body?.message || translate('filePicker.unavailable'));
       } else {
         setData(body);
         // 默认展开"含推荐项"的那一组，没有推荐就展开第一张表
@@ -99,7 +93,7 @@ const FileTargetPicker = ({ nameKey, paramName, level, onPick }) => {
       setLoadedKey(currentKey);
     } catch (e) {
       setData(null);
-      setError(e?.message || TEXT.unavailable);
+      setError(e?.message || translate('filePicker.unavailable'));
     } finally {
       setLoading(false);
     }
@@ -128,18 +122,18 @@ const FileTargetPicker = ({ nameKey, paramName, level, onPick }) => {
       type="button"
       className={`${styles.item} ${item.recommended ? styles.itemRecommended : ""}`}
       onClick={() => pick(item.path)}
-      title="点击填入这个路径"
+      title={translate('filePicker.pickHint')}
     >
       <div className={styles.itemHead}>
         <span className={`${styles.kindTag} ${item.kind === "directory" ? styles.kindDirectory : styles.kindFile}`}>
-          {item.kind === "directory" ? "目录" : "文件"}
+          {item.kind === "directory" ? translate('filePicker.directory') : translate('filePicker.file')}
         </span>
         <span className={styles.label}>{item.label}</span>
-        {item.recommended && <span className={styles.recommended}>★推荐</span>}
+        {item.recommended && <span className={styles.recommended}>{translate('filePicker.recommended')}</span>}
       </div>
       <div className={styles.path}>{item.path}</div>
       <div className={styles.meta}>
-        {[item.belongsTo, itemMeta(item)].filter(Boolean).join(" · ")}
+        {[item.belongsTo, itemMeta(item, translate)].filter(Boolean).join(" · ")}
       </div>
       {item.note && <div className={styles.note}>{item.note}</div>}
     </button>
@@ -176,22 +170,22 @@ const FileTargetPicker = ({ nameKey, paramName, level, onPick }) => {
           }
         }}
       >
-        {TEXT.trigger}
+        {translate('filePicker.trigger')}
       </button>
 
       {open && (
         <div className={styles.panel}>
           <div className={styles.header}>
             <span>
-              {TEXT.title}
-              {data?.dataDirectory ? `（${data.dataDirectory}）` : ""}
+              {translate('filePicker.title')}
+              {data?.dataDirectory ? translate('filePicker.dataDir', { dir: data.dataDirectory }) : ""}
             </span>
             <button type="button" className={styles.close} onClick={() => setOpen(false)}>
               ✕
             </button>
           </div>
 
-          {loading && <div className={styles.message}>正在查目标库…</div>}
+          {loading && <div className={styles.message}>{translate('filePicker.loading')}</div>}
           {!loading && error && <div className={`${styles.message} ${styles.error}`}>{error}</div>}
 
           {!loading && !error && data && (

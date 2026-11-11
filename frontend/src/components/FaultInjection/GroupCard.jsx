@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useDrag, useDrop } from 'react-dnd';
+import { useLanguage } from '../../i18n';
 import styles from './FaultList.module.css';
 
 const GroupCard = ({
@@ -18,6 +19,7 @@ const GroupCard = ({
   index,
   moveCard,
 }) => {
+  const { translate } = useLanguage();
   const ref = useRef(null);
   const [hoveredInnerIndex, setHoveredInnerIndex] = useState(null);
 
@@ -81,14 +83,14 @@ const GroupCard = ({
         {isExpanded ? (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
-              <span style={{ fontSize: 12, color: '#555' }}>Duration</span>
+              <span style={{ fontSize: 12, color: '#555' }}>{translate('groupCard.duration')}</span>
               <input
                 type="number"
                 value={groupDuration ?? '60'}
                 onChange={(e) => onUpdateGroupDuration && onUpdateGroupDuration(groupId, e.target.value)}
                 style={{ width: 60, padding: '2px 6px', fontSize: 13, border: '1px solid #d9d9d9', borderRadius: 4 }}
               />
-              <span style={{ fontSize: 12, color: '#666' }}>s</span>
+              <span style={{ fontSize: 12, color: '#666' }}>{translate('common.seconds')}</span>
             </div>
             {faults.map((fault, innerIndex) => (
             <InnerFaultItem

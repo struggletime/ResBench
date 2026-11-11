@@ -115,7 +115,7 @@ const ConfigDetailModal = ({ title, selectedRecords, onClose }) => {
 
           return (
             <div key={record.id} style={s.recordCard}>
-              <div style={s.recordTitle}>记录 {idx + 1}: {record.id}</div>
+              <div style={s.recordTitle}>{translate('comparison.recordCount', { index: idx + 1, id: record.id })}</div>
 
               <div style={s.infoGrid}>
                 <div style={s.infoItem}>

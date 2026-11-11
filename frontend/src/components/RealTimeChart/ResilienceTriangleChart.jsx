@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import "./ResilienceTriangleChart.css";
 import { useLanguage } from '../../i18n';
+import { resolveFaultDisplayName } from '../../config/faultConfig';
 import { buildFaultDetails, effectiveGroupKey } from '../../utils/faultDetails';
 import FaultDetailPopover from './FaultDetailPopover';
 
@@ -147,7 +148,7 @@ const ResilienceTriangleChart = ({
           rawZones.push({
             zoneStart,
             zoneEnd,
-            faultName: f.faultName || '',
+            faultName: resolveFaultDisplayName(f, translate, lang),
             groupKey: f.groupKey || '',
             info: f,
           });
@@ -189,7 +190,13 @@ const ResilienceTriangleChart = ({
           : zoneStart + 60;
         if (zoneStart < zoneEnd) {
           const extendedEnd = Math.min(zoneEnd + RECOVERY_EXTRA_SEC, series.length > 0 ? series[series.length - 1].time : zoneEnd + RECOVERY_EXTRA_SEC);
-          faultZones.push({ zoneStart, zoneEnd: extendedEnd, faultName: t.faultName || '', groupKey: '', infos: [] });
+          faultZones.push({
+            zoneStart,
+            zoneEnd: extendedEnd,
+            faultName: resolveFaultDisplayName(t.faultName || '', translate, lang),
+            groupKey: '',
+            infos: [],
+          });
         }
       }
     }
@@ -224,7 +231,7 @@ const ResilienceTriangleChart = ({
     }
 
     return { series, baselineValue, autoTriangles, faultZones, recoveryZones, convertedBackendTriangles };
-  }, [baseline, data, faultInjectInfo, triangles]);
+  }, [baseline, data, faultInjectInfo, triangles, translate, lang]);
 
   const trianglesToRender = prepared.convertedBackendTriangles.length > 0
     ? prepared.convertedBackendTriangles

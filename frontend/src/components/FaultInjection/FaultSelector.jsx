@@ -1,22 +1,24 @@
 import styles from './FaultSelector.module.css';
 import { FAULT_CATEGORIES } from '../../config/faultConfig';
+import { useLanguage } from '../../i18n';
 
 // 分类 tab 标签（未知/新增分类直接展示分类名）
-const CATEGORY_LABELS = {
-  CPU: 'CPU',
-  network: 'Network',
-  memory: 'Memory',
-  IO: 'I/O',
-  process: 'Process',
-  database: 'Database',
+const CATEGORY_LABEL_KEYS = {
+  CPU: 'faultCategory.CPU',
+  network: 'faultCategory.network',
+  memory: 'faultCategory.memory',
+  IO: 'faultCategory.IO',
+  process: 'faultCategory.process',
+  database: 'faultCategory.database',
 };
 
 // 目录驱动的分类 tab（设计 §8）：只渲染 FAULT_CATEGORIES 中非空的分类。
 // yaml 清空某分类（如全注释故障）→ 该 tab 自动消失，前端的故障列表完全由 yaml 决定。
 const FaultSelector = ({ onClick, selectedType }) => {
+  const { translate } = useLanguage();
   const options = Object.keys(FAULT_CATEGORIES)
     .filter((c) => Array.isArray(FAULT_CATEGORIES[c]) && FAULT_CATEGORIES[c].length > 0)
-    .map((c) => ({ value: c, label: CATEGORY_LABELS[c] || c }));
+    .map((c) => ({ value: c, label: CATEGORY_LABEL_KEYS[c] ? translate(CATEGORY_LABEL_KEYS[c]) : c }));
 
   return (
     <div className={styles.container}>

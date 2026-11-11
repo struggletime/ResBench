@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { Pagination } from 'antd';
 import styles from './HistoryTable.module.css';
 import { useLanguage } from '../../i18n';
+import { resolveFaultDisplayName } from '../../config/faultConfig';
 import RunChartsModal from './RunChartsModal';
 import MonitoringDataModal from './MonitoringDataModal';
 import ReportPreview from './ReportPreview';
@@ -33,7 +34,7 @@ const BUILTIN_DB_TYPES = [
   { value: 'mariadb', label: 'MariaDB' },
   { value: 'oracle', label: 'Oracle' },
   { value: 'sqlserver', label: 'SQL Server' },
-  { value: 'dm', label: '达梦 DM' },
+  { value: 'dm', label: 'DM', labelKey: 'history.dbType.dm' },
   { value: 'kingbase', label: 'KingbaseES' },
   { value: 'gaussdb', label: 'GaussDB' },
   { value: 'tidb', label: 'TiDB' },
@@ -57,18 +58,18 @@ function normalizeDbType(value) {
 }
 
 const SOURCE_OPTIONS = [
-  { value: 'ui', label: 'UI 手动' },
-  { value: 'script', label: '脚本' },
-  { value: 'matrix', label: '矩阵编排' },
+  { value: 'ui', labelKey: 'history.source.ui' },
+  { value: 'script', labelKey: 'history.source.script' },
+  { value: 'matrix', labelKey: 'history.source.matrix' },
 ];
 
 // 故障验证状态对应的颜色 chip（verification 可能为 null = 未注入/待验证）
 const VERIFICATION_META = {
-  ENFORCED: { text: '已生效', color: '#15803d', bg: '#dcfce7', border: '#86efac' },
-  NOT_ENFORCED: { text: '未生效', color: '#b91c1c', bg: '#fee2e2', border: '#fca5a5' },
-  ERROR: { text: '校验异常', color: '#c2410c', bg: '#ffedd5', border: '#fdba74' },
-  UNKNOWN: { text: '未知', color: '#525252', bg: '#f5f5f5', border: '#d4d4d4' },
-  PENDING: { text: '待注入', color: '#6b7280', bg: '#f3f4f6', border: '#e5e7eb' },
+  ENFORCED: { textKey: 'verification.status.ENFORCED', color: '#15803d', bg: '#dcfce7', border: '#86efac' },
+  NOT_ENFORCED: { textKey: 'verification.status.NOT_ENFORCED', color: '#b91c1c', bg: '#fee2e2', border: '#fca5a5' },
+  ERROR: { textKey: 'verification.status.ERROR', color: '#c2410c', bg: '#ffedd5', border: '#fdba74' },
+  UNKNOWN: { textKey: 'verification.status.UNKNOWN', color: '#525252', bg: '#f5f5f5', border: '#d4d4d4' },
+  PENDING: { textKey: 'verification.status.PENDING', color: '#6b7280', bg: '#f3f4f6', border: '#e5e7eb' },
 };
 
 const ARTIFACT_DEFS = [
@@ -158,21 +159,13 @@ function deriveStatus(statusData, startTimestamp) {
   return 'unknown';
 }
 
-function getStatusLabel(status, lang) {
+function getStatusLabel(status, translate) {
   const statusKey = String(status || '').toLowerCase();
-  if (lang === 'en') {
-    if (statusKey === 'normal') return 'Normal';
-    if (statusKey === 'error') return 'Error';
-    if (statusKey === 'running') return 'Running';
-    if (statusKey === 'stopped') return 'Stopped';
-    return 'Unknown';
-  }
-
-  if (statusKey === 'normal') return '正常';
-  if (statusKey === 'error') return '异常';
-  if (statusKey === 'running') return '运行中';
-  if (statusKey === 'stopped') return '已停止';
-  return '未知';
+  if (statusKey === 'normal') return translate('history.status.normal');
+  if (statusKey === 'error') return translate('history.status.error');
+  if (statusKey === 'running') return translate('history.status.running');
+  if (statusKey === 'stopped') return translate('history.status.stopped');
+  return translate('history.status.unknown');
 }
 
 function formatDuration(ms) {
@@ -222,9 +215,9 @@ function verificationMeta(status) {
   return VERIFICATION_META[key] || { ...VERIFICATION_META.UNKNOWN };
 }
 
-function sourceLabel(source) {
+function sourceLabel(source, translate) {
   const found = SOURCE_OPTIONS.find((item) => item.value === String(source || '').toLowerCase());
-  return found ? found.label : source;
+  return found ? translate(found.labelKey) : source;
 }
 
 function statusFromSuccess(success, state) {
@@ -235,18 +228,19 @@ function statusFromSuccess(success, state) {
   return 'unknown';
 }
 
-function faultTitle(fault) {
+function faultTitle(fault, translate, lang) {
   const parts = [];
-  if (fault?.faultName) parts.push(`故障：${fault.faultName}`);
-  if (fault?.nameKey) parts.push(`nameKey：${fault.nameKey}`);
-  if (fault?.groupKey) parts.push(`groupKey：${fault.groupKey}`);
+  const displayName = resolveFaultDisplayName(fault, translate, lang);
+  if (displayName) parts.push(translate('history.faultTitle.fault', { name: displayName }));
+  if (fault?.nameKey) parts.push(translate('history.faultTitle.nameKey', { key: fault.nameKey }));
+  if (fault?.groupKey) parts.push(translate('history.faultTitle.groupKey', { key: fault.groupKey }));
   if (fault?.delaySeconds !== null && fault?.delaySeconds !== undefined) {
-    parts.push(`注入时刻：${fault.delaySeconds}s`);
+    parts.push(translate('history.faultTitle.delay', { seconds: fault.delaySeconds }));
   }
   const paramsText = formatParams(fault?.params);
-  if (paramsText) parts.push(`参数：${paramsText}`);
+  if (paramsText) parts.push(translate('history.faultTitle.params', { params: paramsText }));
   const meta = verificationMeta(fault?.verification);
-  parts.push(`验证：${meta.text}`);
+  parts.push(translate('history.faultTitle.verification', { status: translate(meta.textKey) }));
   return parts.join('\n');
 }
 
@@ -636,11 +630,13 @@ function HistoryTable() {
           setLocalRuns(normalizeHistoryRecords(fallbackData));
           setMode('local');
           setQueryError(
-            `${error?.message || '检索接口不可用'} — 已回退到本地列表（/suite/history/list），本地搜索仍可用`
+            `${error?.message || translate('history.queryUnavailable')}${translate('history.queryFallback')}`
           );
         } catch (fallbackError) {
           if (cancelled) return;
-          setQueryError(fallbackError?.message || error?.message || '历史数据加载失败');
+          setQueryError(
+            fallbackError?.message || error?.message || translate('history.loadFailed')
+          );
         }
       } finally {
         if (!cancelled) setQueryLoading(false);
@@ -651,7 +647,7 @@ function HistoryTable() {
     return () => {
       cancelled = true;
     };
-  }, [queryParams, reloadToken, currentRunId, lastRunId]);
+  }, [queryParams, reloadToken, currentRunId, lastRunId, translate]);
 
   useEffect(() => {
     if (!queryError) return undefined;
@@ -708,7 +704,9 @@ function HistoryTable() {
   const dbTypeOptions = useMemo(() => {
     const options = new Map();
     // 以族键做去重，postgres / postgresql / POSTGRES 只出现一次，展示内置的规范名
-    BUILTIN_DB_TYPES.forEach((item) => options.set(normalizeDbType(item.value), item.label));
+    BUILTIN_DB_TYPES.forEach((item) =>
+      options.set(normalizeDbType(item.value), item.labelKey ? translate(item.labelKey) : item.label)
+    );
     const collect = (value) => {
       const key = normalizeDbType(value);
       if (!key) return;
@@ -720,10 +718,10 @@ function HistoryTable() {
       localRuns.forEach((run) => collect(run.dbType));
     }
     return [
-      { value: '', label: '全部' },
+      { value: '', label: translate('common.all') },
       ...[...options.entries()].map(([value, label]) => ({ value, label })),
     ];
-  }, [mode, serverRows, localRuns]);
+  }, [mode, serverRows, localRuns, translate]);
 
   // 回退模式：本地过滤 + 本地分页
   // 注意：/suite/history/list 没有产物完整性信息，complete 在回退模式下不参与过滤（控件同时禁用）
@@ -788,7 +786,7 @@ function HistoryTable() {
       const gk = info?.groupKey;
       if (gk) {
         if (!groups[gk]) groups[gk] = { faultNames: [], scores: [] };
-        groups[gk].faultNames.push(fs.faultName);
+        groups[gk].faultNames.push(resolveFaultDisplayName(fs, translate, lang));
         groups[gk].scores.push(fs);
       } else {
         standalone.push(fs);
@@ -800,10 +798,10 @@ function HistoryTable() {
       options.push({ ...first, faultName: group.faultNames.join(' + ') });
     }
     for (const fs of standalone) {
-      options.push(fs);
+      options.push({ ...fs, faultName: resolveFaultDisplayName(fs, translate, lang) });
     }
     return options;
-  }, [selectedFaultScores, selectedFaultInjectInfo]);
+  }, [selectedFaultScores, selectedFaultInjectInfo, translate, lang]);
 
   const displayScores = useMemo(() => {
     if (selectedFaultIdx >= 0 && selectedFaultIdx < groupedFaultOptions.length) {
@@ -852,13 +850,12 @@ function HistoryTable() {
         } else {
           setLoadedScores(null);
           const detail = result === null || result === undefined
-            ? (lang === 'en' ? 'null/empty response' : '后端返回了空响应（null/undefined）')
-            : (lang === 'en'
-              ? `type: ${typeof result}, keys: ${Object.keys(result).join(', ') || '(none)'}`
-              : `类型: ${typeof result}，字段: ${Object.keys(result).join(', ') || '(无)'}`);
-          setScoresError(lang === 'en'
-            ? `Score mapping failed — ${detail}`
-            : `评分映射失败 — ${detail}`);
+            ? translate('history.missingResponse')
+            : translate('history.responseType', {
+              type: typeof result,
+              keys: Object.keys(result).join(', ') || translate('common.none'),
+            });
+          setScoresError(translate('history.scoreMappingFailed', { detail }));
         }
         const monitorRows = Array.isArray(monitor?.data)
           ? monitor.data
@@ -904,9 +901,7 @@ function HistoryTable() {
         if (!cancelled) {
           setLoadedScores(null);
           setSelectedMonitorData([]);
-          setScoresError(lang === 'en'
-            ? `Failed to load: ${errMsg}`
-            : `数据加载失败：${errMsg}`);
+          setScoresError(translate('history.scoreLoadingFailed', { error: errMsg }));
         }
       } finally {
         if (!cancelled) {
@@ -916,7 +911,7 @@ function HistoryTable() {
     })();
 
     return () => { cancelled = true; };
-  }, [selectedRun, mapResultToScores, suiteNameOf, lang]);
+  }, [selectedRun, mapResultToScores, suiteNameOf, translate]);
 
   useEffect(() => {
     if (!reportModalRun) {
@@ -1004,10 +999,10 @@ function HistoryTable() {
         prev && prev.id === labelTarget.historyName ? { ...prev, labels, note } : prev
       );
       setLabelTarget(null);
-      setNotice('标签 / 备注已保存');
+      setNotice(translate('history.labelSaved'));
       setReloadToken((token) => token + 1); // 刷新列表（后端会补建旧运行的 run-meta.json）
     } catch (error) {
-      setLabelError(error?.message || '保存失败，请稍后重试');
+      setLabelError(error?.message || translate('history.saveFailed'));
     } finally {
       setLabelSaving(false);
     }
@@ -1021,16 +1016,16 @@ function HistoryTable() {
       const { blob, filename } = await exportHistoryArchive(exportTarget.historyName, include);
       triggerBlobDownload(blob, filename);
       setExportTarget(null);
-      setNotice(`已开始下载 ${filename}`);
+      setNotice(translate('history.downloadStarted', { filename }));
     } catch (error) {
-      setExportError(error?.message || '导出失败，请稍后重试');
+      setExportError(error?.message || translate('history.exportFailed'));
     } finally {
       setExporting(false);
     }
   };
 
   const showInitialLoading = queryLoading && displayRows.length === 0 && totalRecords === 0;
-  const initialLoadingText = lang === 'en' ? 'Loading history...' : '正在加载历史数据...';
+  const initialLoadingText = translate('history.loadingInitial');
 
   return (
     <div className={styles.historyTable}>
@@ -1040,7 +1035,7 @@ function HistoryTable() {
           <label>{translate('history.testId')}</label>
           <input
             type="text"
-            placeholder={lang === 'en' ? 'keyword: name / runId / note / label' : '关键字：名称 / runId / 备注 / 标签'}
+            placeholder={translate('history.keywordPlaceholder')}
             value={filters.keyword}
             onChange={(event) => updateFilter('keyword', event.target.value)}
             className={styles.searchInput}
@@ -1059,21 +1054,21 @@ function HistoryTable() {
           </select>
         </div>
         <div className={styles.searchItem}>
-          <label>状态</label>
+          <label>{translate('history.statusLabel')}</label>
           <select
             value={filters.success}
             onChange={(event) => updateFilter('success', event.target.value)}
             className={styles.searchInput}
             style={{ width: 120 }}
           >
-            <option value="">全部</option>
-            <option value="true">成功</option>
-            <option value="false">失败</option>
-            <option value="unknown">未知</option>
+            <option value="">{translate('common.all')}</option>
+            <option value="true">{translate('history.statusSuccess')}</option>
+            <option value="false">{translate('history.statusFailed')}</option>
+            <option value="unknown">{translate('common.unknown')}</option>
           </select>
         </div>
         <div className={styles.searchItem}>
-          <label>开始时间</label>
+          <label>{translate('history.startTimeFilter')}</label>
           <input
             type="datetime-local"
             value={filters.since}
@@ -1082,7 +1077,7 @@ function HistoryTable() {
           />
         </div>
         <div className={styles.searchItem}>
-          <label>结束时间</label>
+          <label>{translate('history.endTimeFilter')}</label>
           <input
             type="datetime-local"
             value={filters.until}
@@ -1097,7 +1092,7 @@ function HistoryTable() {
           {translate('history.clear')}
         </button>
         <button className={styles.filterToggle} onClick={() => setFiltersOpen((open) => !open)}>
-          {filtersOpen ? '收起筛选' : '更多筛选'}
+          {filtersOpen ? translate('history.filtersCollapse') : translate('history.filtersMore')}
           {activeFilterCount > 0 ? <span className={styles.filterCount}>{activeFilterCount}</span> : null}
         </button>
       </div>
@@ -1105,17 +1100,17 @@ function HistoryTable() {
       {filtersOpen ? (
         <div className={styles.filterAdvanced}>
           <div className={styles.searchItem}>
-            <label>负载</label>
+            <label>{translate('history.workload')}</label>
             <input
               type="text"
-              placeholder="如 sysbench / tpcc"
+              placeholder={translate('history.workloadPlaceholder')}
               value={filters.workload}
               onChange={(event) => updateFilter('workload', event.target.value)}
               className={styles.searchInput}
             />
           </div>
           <div className={styles.searchItem}>
-            <label>编排 id</label>
+            <label>{translate('history.orchestration')}</label>
             <input
               type="text"
               placeholder="orchestrationId"
@@ -1125,7 +1120,7 @@ function HistoryTable() {
             />
           </div>
           <div className={styles.searchItem}>
-            <label>数据库标识</label>
+            <label>{translate('history.dbKey')}</label>
             <input
               type="text"
               placeholder="dbKey"
@@ -1135,17 +1130,17 @@ function HistoryTable() {
             />
           </div>
           <div className={styles.searchItem}>
-            <label>故障</label>
+            <label>{translate('history.fault')}</label>
             <input
               type="text"
-              placeholder="故障名（忽略大小写与点/空格）"
+              placeholder={translate('history.faultPlaceholder')}
               value={filters.fault}
               onChange={(event) => updateFilter('fault', event.target.value)}
               className={styles.searchInput}
             />
           </div>
           <div className={styles.searchItem}>
-            <label>故障结果</label>
+            <label>{translate('history.faultOutcome')}</label>
             <select
               value={filters.faultOutcome}
               disabled={mode === 'local'}
@@ -1154,33 +1149,33 @@ function HistoryTable() {
               style={{ width: 200 }}
               title={
                 mode === 'local'
-                  ? '本地回退模式没有逐故障执行结果'
-                  : '只保留所有故障都注入成功且恢复成功的运行（网络类故障超时自愈按恢复成功计）'
+                  ? translate('history.faultOutcomeLocalUnavailable')
+                  : translate('history.faultOutcomeHint')
               }
             >
-              <option value="">全部</option>
-              <option value="all-ok">全部成功（注入 + 恢复）</option>
+              <option value="">{translate('common.all')}</option>
+              <option value="all-ok">{translate('history.faultOutcomeAll')}</option>
             </select>
           </div>
           <div className={styles.searchItem}>
-            <label>来源</label>
+            <label>{translate('history.source')}</label>
             <select
               value={filters.source}
               onChange={(event) => updateFilter('source', event.target.value)}
               className={styles.searchInput}
               style={{ width: 140 }}
             >
-              <option value="">全部</option>
+              <option value="">{translate('common.all')}</option>
               {SOURCE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                <option key={opt.value} value={opt.value}>{translate(opt.labelKey)}</option>
               ))}
             </select>
           </div>
           <div className={styles.searchItem}>
-            <label>标签</label>
+            <label>{translate('history.label')}</label>
             <input
               type="text"
-              placeholder="如 nightly"
+              placeholder={translate('history.labelPlaceholder')}
               value={filters.label}
               onChange={(event) => updateFilter('label', event.target.value)}
               className={styles.searchInput}
@@ -1188,7 +1183,7 @@ function HistoryTable() {
           </div>
           <label
             className={styles.checkboxItem}
-            title={mode === 'local' ? '本地回退模式无法判断产物完整性' : '只保留 summary + monitor + metric 齐全的运行'}
+            title={mode === 'local' ? translate('history.completeLocalUnavailable') : translate('history.completeHint')}
           >
             <input
               type="checkbox"
@@ -1196,25 +1191,25 @@ function HistoryTable() {
               disabled={mode === 'local'}
               onChange={(event) => updateFilter('complete', event.target.checked)}
             />
-            只看数据完整
+            {translate('history.completeOnly')}
           </label>
           <div className={styles.searchItem}>
-            <label>排序</label>
+            <label>{translate('history.sort')}</label>
             <select
               value={sort}
               onChange={(event) => { setSort(event.target.value); setPage(1); }}
               className={styles.searchInput}
               style={{ width: 150 }}
             >
-              <option value="">开始时间倒序</option>
-              <option value="start_asc">开始时间正序</option>
+              <option value="">{translate('history.sortDesc')}</option>
+              <option value="start_asc">{translate('history.sortAsc')}</option>
             </select>
           </div>
           <div className={styles.searchItem}>
-            <label>时间快捷</label>
-            <button className={styles.quickRangeBtn} onClick={() => handleQuickRange(24)}>近 24 小时</button>
-            <button className={styles.quickRangeBtn} onClick={() => handleQuickRange(24 * 7)}>近 7 天</button>
-            <button className={styles.quickRangeBtn} onClick={() => handleQuickRange(24 * 30)}>近 30 天</button>
+            <label>{translate('history.quickRange')}</label>
+            <button className={styles.quickRangeBtn} onClick={() => handleQuickRange(24)}>{translate('history.quick24h')}</button>
+            <button className={styles.quickRangeBtn} onClick={() => handleQuickRange(24 * 7)}>{translate('history.quick7d')}</button>
+            <button className={styles.quickRangeBtn} onClick={() => handleQuickRange(24 * 30)}>{translate('history.quick30d')}</button>
           </div>
         </div>
       ) : null}
@@ -1222,7 +1217,7 @@ function HistoryTable() {
       {/* 回退模式的旧本地搜索框（/suite/history/list 数据可用） */}
       {mode === 'local' ? (
         <div className={styles.legacySearchBar}>
-          <span className={styles.legacyTag}>本地回退搜索</span>
+          <span className={styles.legacyTag}>{translate('history.localFallbackSearch')}</span>
           <input
             type="text"
             placeholder={translate('history.placeholder.testId')}
@@ -1243,7 +1238,7 @@ function HistoryTable() {
             }}
             className={styles.searchInput}
           />
-          <span className={styles.legacyHint}>检索接口不可用时的兜底：仅按测试 ID / 数据库类型本地过滤。</span>
+          <span className={styles.legacyHint}>{translate('history.localFallbackHint')}</span>
         </div>
       ) : null}
 
@@ -1251,11 +1246,11 @@ function HistoryTable() {
         <div className={styles.historyStatusRow}>
           {showInitialLoading ? <div className={styles.loadingBanner}>{initialLoadingText}</div> : null}
           {!showInitialLoading && queryLoading ? (
-            <div className={styles.loadingBanner}>{lang === 'en' ? 'Searching...' : '检索中...'}</div>
+            <div className={styles.loadingBanner}>{translate('history.searching')}</div>
           ) : null}
-          {mode === 'local' ? <div className={styles.modeHint}>本地回退模式</div> : null}
+          {mode === 'local' ? <div className={styles.modeHint}>{translate('history.localFallbackMode')}</div> : null}
           {unknownOnly ? (
-            <div className={styles.modeHint}>「未知」状态仅对当前页做本地过滤（后端 success 只支持 true/false）</div>
+            <div className={styles.modeHint}>{translate('history.unknownOnlyHint')}</div>
           ) : null}
           {notice ? <div className={styles.noticeBanner}>{notice}</div> : null}
           {queryError ? <div className={styles.errorBanner}>{queryError}</div> : null}
@@ -1266,23 +1261,23 @@ function HistoryTable() {
         <table className={styles.runsTable}>
           <thead>
             <tr>
-              <th>运行名</th>
-              <th>开始时间</th>
-              <th>数据库</th>
-              <th>负载</th>
-              <th>编排 id</th>
-              <th>故障</th>
-              <th>关键指标</th>
-              <th>完整性</th>
-              <th>标签</th>
-              <th>操作</th>
+              <th>{translate('history.table.runName')}</th>
+              <th>{translate('history.startTime')}</th>
+              <th>{translate('history.table.database')}</th>
+              <th>{translate('history.table.workload')}</th>
+              <th>{translate('history.table.orchestration')}</th>
+              <th>{translate('history.table.fault')}</th>
+              <th>{translate('history.table.metrics')}</th>
+              <th>{translate('history.table.artifacts')}</th>
+              <th>{translate('history.table.labels')}</th>
+              <th>{translate('history.table.actions')}</th>
             </tr>
           </thead>
           <tbody>
             {displayRows.length === 0 ? (
               <tr>
                 <td colSpan={10} style={{ textAlign: 'center', padding: '16px' }}>
-                  {queryLoading ? (lang === 'en' ? 'Loading...' : '加载中...') : (lang === 'en' ? 'No records' : '暂无记录')}
+                  {queryLoading ? translate('history.loadingShort') : translate('history.noRecords')}
                 </td>
               </tr>
             ) : (
@@ -1301,17 +1296,17 @@ function HistoryTable() {
                       </button>
                       <div className={styles.runCellMeta}>
                         <span className={`${styles.statusBadge} ${styles[statusKey] || ''}`}>
-                          {getStatusLabel(run.status, lang)}
+                          {getStatusLabel(run.status, translate)}
                         </span>
                         {run.autoTimingMode ? (
-                          <span className={styles.cellSecondary}>时序：{run.autoTimingMode}</span>
+                          <span className={styles.cellSecondary}>{translate('history.autoTiming')}{run.autoTimingMode}</span>
                         ) : null}
                       </div>
                     </td>
                     <td>
                       <div>{run.startTime}</div>
                       {run.elapsedMs ? (
-                        <div className={styles.cellSecondary}>耗时 {formatDuration(run.elapsedMs)}</div>
+                        <div className={styles.cellSecondary}>{translate('history.elapsed')} {formatDuration(run.elapsedMs)}</div>
                       ) : null}
                     </td>
                     <td>
@@ -1331,30 +1326,32 @@ function HistoryTable() {
                     </td>
                     <td>
                       <div>{run.orchestrationId || '-'}</div>
-                      {run.source ? <span className={styles.sourceBadge}>{sourceLabel(run.source)}</span> : null}
+                      {run.source ? <span className={styles.sourceBadge}>{sourceLabel(run.source, translate)}</span> : null}
                     </td>
                     <td>
                       {run.faults.length === 0 ? (
-                        <span className={styles.cellMuted}>无</span>
+                        <span className={styles.cellMuted}>{translate('history.noFaults')}</span>
                       ) : (
                         <div className={styles.faultList}>
-                          <span className={styles.faultCount}>{run.faults.length} 个</span>
+                          <span className={styles.faultCount}>{translate('history.faultCount', { count: run.faults.length })}</span>
                           {run.faults.slice(0, 3).map((fault, faultIndex) => {
                             const meta = verificationMeta(fault.verification);
                             return (
                               <span
                                 key={`${fault.nameKey || fault.faultName || 'fault'}-${faultIndex}`}
                                 className={styles.faultChip}
-                                title={faultTitle(fault)}
+                                title={faultTitle(fault, translate, lang)}
                               >
                                 <span className={styles.faultName}>
-                                  {fault.faultName || fault.nameKey || `#${faultIndex + 1}`}
+                                  {resolveFaultDisplayName(fault, translate, lang)
+                                    || fault.nameKey
+                                    || `#${faultIndex + 1}`}
                                 </span>
                                 <span
                                   className={styles.verifChip}
                                   style={{ color: meta.color, background: meta.bg, borderColor: meta.border }}
                                 >
-                                  {meta.text}
+                                  {translate(meta.textKey)}
                                 </span>
                               </span>
                             );
@@ -1368,9 +1365,9 @@ function HistoryTable() {
                     <td>
                       {run.metrics ? (
                         <div className={styles.metricGrid}>
-                          <span>稳定性 <b>{formatMetric(run.metrics.stability)}</b></span>
-                          <span>抵御 <b>{formatMetric(run.metrics.defence)}</b></span>
-                          <span>恢复 <b>{formatMetric(run.metrics.recovery)}</b></span>
+                          <span>{translate('history.metric.stability')} <b>{formatMetric(run.metrics.stability)}</b></span>
+                          <span>{translate('history.metric.resistance')} <b>{formatMetric(run.metrics.defence)}</b></span>
+                          <span>{translate('history.metric.recovery')} <b>{formatMetric(run.metrics.recovery)}</b></span>
                           <span>RTO <b>{formatMetric(run.metrics.rto)}</b></span>
                         </div>
                       ) : (
@@ -1390,11 +1387,11 @@ function HistoryTable() {
                               </span>
                             ))}
                             {run.artifacts.complete ? (
-                              <span className={`${styles.artifactChip} ${styles.chipComplete}`}>完整</span>
+                              <span className={`${styles.artifactChip} ${styles.chipComplete}`}>{translate('history.artifact.complete')}</span>
                             ) : null}
                           </div>
                           {run.artifacts.sizeBytes ? (
-                            <div className={styles.cellSecondary}>总 {formatBytes(run.artifacts.sizeBytes)}</div>
+                            <div className={styles.cellSecondary}>{translate('history.totalSize', { size: formatBytes(run.artifacts.sizeBytes) })}</div>
                           ) : null}
                         </>
                       ) : (
@@ -1426,11 +1423,9 @@ function HistoryTable() {
                       <button
                         className={`${styles.operationBtn} ${styles.monitor}`}
                         onClick={() => setMonitorModalRun(run)}
-                        title={lang === 'en'
-                          ? 'Prometheus series archived for this run'
-                          : '这一轮归档下来的监控曲线（Prometheus 指标）'}
+                        title={translate('history.monitorDataHint')}
                       >
-                        监控数据
+                        {translate('history.monitorData')}
                       </button>
                       <button
                         className={`${styles.operationBtn} ${styles.archive}`}
@@ -1439,7 +1434,7 @@ function HistoryTable() {
                           setLabelTarget(run);
                         }}
                       >
-                        标签/备注
+                        {translate('history.labelsNote')}
                       </button>
                       <button
                         className={`${styles.operationBtn} ${styles.export}`}
@@ -1448,7 +1443,7 @@ function HistoryTable() {
                           setExportTarget(run);
                         }}
                       >
-                        导出 zip
+                        {translate('history.exportZip')}
                       </button>
                     </td>
                   </tr>
@@ -1476,7 +1471,7 @@ function HistoryTable() {
             showSizeChanger
             pageSizeOptions={PAGE_SIZE_OPTIONS}
             showQuickJumper
-            showTotal={(total) => (lang === 'en' ? `${total} records` : `共 ${total} 条`)}
+            showTotal={(total) => translate('history.paginationTotal', { total })}
           />
         </div>
       )}

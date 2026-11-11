@@ -1,4 +1,6 @@
 import { useLanguage } from "../../i18n";
+import { resolveFaultDisplayName } from "../../config/faultConfig";
+import { localizeBackendText } from "../../utils/backendMessages";
 import { CHANNEL_STATE, faultChannelState, runChannelState } from "../../utils/channelState";
 
 const STATUS_META = {
@@ -32,10 +34,12 @@ const CHANNEL_PANEL = {
 };
 
 /** 断开时刻（第一次观测到回退）在提示里按本地时间写出来 */
-const formatClock = (epochMs) => {
+const formatClock = (epochMs, lang) => {
   const date = new Date(Number(epochMs));
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return date.toLocaleTimeString(lang === 'en' ? 'en-US' : 'zh-CN', {
+    hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
 };
 
 /** 恢复时点之后留一点宽限，避免"刚好到点还没写盘"被误判成未发出 */
@@ -55,8 +59,10 @@ const RECOVERY_GRACE_MS = 5000;
  * <p>红色的醒目块不用悬停：把「注入成没成、恢复成没成、故障实际存在了多久」直接写出来。
  */
 const VerificationBadges = ({ faultInjectInfo = [], showEmpty = true }) => {
-  const { translate } = useLanguage();
+  const { translate, lang } = useLanguage();
   const records = Array.isArray(faultInjectInfo) ? faultInjectInfo : [];
+  const lx = (text) => localizeBackendText(text, translate, lang);
+  const faultLabel = (f) => resolveFaultDisplayName(f, translate, lang) || f?.faultID || '#';
 
   const results = (list) => (Array.isArray(list) ? list.filter(Boolean) : []);
 
@@ -104,7 +110,7 @@ const VerificationBadges = ({ faultInjectInfo = [], showEmpty = true }) => {
   const hasRoundTripData = (f) =>
     [...results(f.faultResults), ...results(f.recoveryResult)].some((r) => isNoReply(r) || isReplied(r));
 
-  const agentText = (rs) => rs.map((r) => r.result).filter(Boolean).join('\n');
+  const agentText = (rs) => lx(rs.map((r) => r.result).filter(Boolean).join('\n'));
 
   /** 一枚小徽章（注入/恢复各一枚）；拿不到状态就什么也不渲染 */
   const chip = (state) =>
@@ -147,7 +153,7 @@ const VerificationBadges = ({ faultInjectInfo = [], showEmpty = true }) => {
         meta: CHIP_META.fail,
         key: 'verification.injectNoReply',
         suffix: elapsedSuffix(rs),
-        title: `${translate('verification.noReplyHint')}${limit ? `（${limit}s）` : ''}\n${agentText(noReply)}`,
+        title: `${translate('verification.noReplyHint')}${limit ? translate('verification.noReplyLimit', { limit }) : ''}\n${agentText(noReply)}`,
       };
     }
     const failed = rs.filter((r) => r.error);
@@ -191,15 +197,16 @@ const VerificationBadges = ({ faultInjectInfo = [], showEmpty = true }) => {
           meta: CHIP_META.fail,
           key: 'verification.recoverNoReply',
           suffix: elapsedSuffix(rs),
-          title: `${translate('verification.noReplyHint')}${limit ? `（${limit}s）` : ''}\n${agentText(noReply)}`,
+          title: `${translate('verification.noReplyHint')}${limit ? translate('verification.noReplyLimit', { limit }) : ''}\n${agentText(noReply)}`,
         };
       }
       // 故障已超时自愈：chaosblade 返回 63063 且 error 是 cannot get the chaos_os program。
       // 引擎已经用「code + 文本」双重判定过，这里不能只看 bladeCode。
       const healed = rs.filter((r) => r.selfRecovered === true);
       if (healed.length) {
-        const detail =
-          healed.map((r) => r.bladeError).filter(Boolean).join('\n') || agentText(healed);
+        const detail = lx(
+          healed.map((r) => r.bladeError).filter(Boolean).join('\n') || agentText(healed)
+        );
         return {
           meta: CHIP_META.selfHealed,
           key: 'verification.recoverSelfHealed',
@@ -316,14 +323,14 @@ const VerificationBadges = ({ faultInjectInfo = [], showEmpty = true }) => {
       return {
         meta: CHIP_META.fail,
         key: 'verification.timelineSuspect',
-        title: `${translate('verification.timelineTooLong')}（记录窗口 ${actual.toFixed(1)}s / 计划 ${planned}s）`,
+        title: `${translate('verification.timelineTooLong')}${translate('verification.timelineWindowObserved', { actual: actual.toFixed(1), planned })}`,
       };
     }
     if (actual < planned * 0.5) {
       return {
         meta: CHIP_META.fail,
         key: 'verification.timelineSuspect',
-        title: `${translate('verification.timelineTooShort')}（实际 ${actual.toFixed(1)}s / 计划 ${planned}s）`,
+        title: `${translate('verification.timelineTooShort')}${translate('verification.timelineWindowActual', { actual: actual.toFixed(1), planned })}`,
       };
     }
     return null;
@@ -372,7 +379,7 @@ const VerificationBadges = ({ faultInjectInfo = [], showEmpty = true }) => {
     hint = hint.replace('{total}', String(channel.total));
     if (channel.state === CHANNEL_STATE.BROKEN) {
       hint = hint
-        .replace('{time}', formatClock(channel.firstFallbackAt))
+        .replace('{time}', formatClock(channel.firstFallbackAt, lang))
         .replace('{count}', String(channel.httpCountAfter));
     }
     return hint;
@@ -418,7 +425,7 @@ const VerificationBadges = ({ faultInjectInfo = [], showEmpty = true }) => {
           whiteSpace: 'nowrap',
         }}
       >
-        <strong style={{ fontWeight: 600 }}>{f.faultName || f.faultID || '#'}</strong>
+        <strong style={{ fontWeight: 600 }}>{faultLabel(f)}</strong>
         <span>{text}</span>
         {chip(inject)}
         {chip(recover)}
@@ -431,7 +438,7 @@ const VerificationBadges = ({ faultInjectInfo = [], showEmpty = true }) => {
   // ---- 醒目提示区：把「注入成没成、恢复成没成」直接写出来，不用悬停 ----
   const clip = (s, n = 140) => {
     // 悬浮提示里用换行分隔「说明」和「agent 原文」，摊平到一行时改成顿号，别连成一句
-    const t = String(s || '').replace(/\s*\n+\s*/g, '；').replace(/[ \t]+/g, ' ').trim();
+    const t = String(s || '').replace(/\s*\n+\s*/g, translate('common.semicolon')).replace(/[ \t]+/g, ' ').trim();
     return t.length > n ? `${t.slice(0, n)}…` : t;
   };
   const rowsWithState = records
@@ -478,7 +485,7 @@ const VerificationBadges = ({ faultInjectInfo = [], showEmpty = true }) => {
       }}
     >
       <span style={{ fontWeight: 600 }}>
-        {channelMeta.icon} {translate('channel.title')}：{translate(channelMeta.key)}
+        {channelMeta.icon} {translate('channel.title')}{translate('common.colon')}{translate(channelMeta.key)}
       </span>
       <span style={{ marginLeft: 8, opacity: 0.9 }}>{channelHint}</span>
     </div>
@@ -502,17 +509,17 @@ const VerificationBadges = ({ faultInjectInfo = [], showEmpty = true }) => {
       </div>
       {problems.map(({ f, inject, recover, legacy, facts }) => (
         <div key={`p-${f.faultID || f.faultName}`}>
-          <strong>{f.faultName || f.faultID || '#'}</strong>
+          <strong>{faultLabel(f)}</strong>
           {inject.meta === CHIP_META.fail && (
             <span style={{ marginLeft: 8 }}>
-              {translate('verification.panelInject')}：{translate(inject.key)}
-              {inject.title ? ` —— ${clip(inject.title)}` : ''}
+              {translate('verification.panelInject')}{translate('common.colon')}{translate(inject.key)}
+              {inject.title ? `${translate('common.separator')}${clip(inject.title)}` : ''}
             </span>
           )}
           {recover.meta === CHIP_META.fail && (
             <span style={{ marginLeft: 8 }}>
-              {translate('verification.panelRecover')}：{translate(recover.key)}
-              {recover.title ? ` —— ${clip(recover.title)}` : ''}
+              {translate('verification.panelRecover')}{translate('common.colon')}{translate(recover.key)}
+              {recover.title ? `${translate('common.separator')}${clip(recover.title)}` : ''}
             </span>
           )}
           {/* 事实行：耗时多少、故障实际存在了多久，都直接写出来 */}
@@ -523,7 +530,7 @@ const VerificationBadges = ({ faultInjectInfo = [], showEmpty = true }) => {
           ))}
           {legacy && (
             <span style={{ marginLeft: 8 }}>
-              ⚠ {translate('verification.timelineSuspect')}：{clip(legacy.title)}
+              ⚠ {translate('verification.timelineSuspect')}{translate('common.colon')}{clip(legacy.title)}
             </span>
           )}
         </div>
@@ -546,7 +553,7 @@ const VerificationBadges = ({ faultInjectInfo = [], showEmpty = true }) => {
       ✓{' '}
       {allOk
         .map(({ f, injectSec, recoverSec }) => {
-          const parts = [`${f.faultName || f.faultID || '#'}`];
+          const parts = [faultLabel(f)];
           parts.push(
             translate('verification.panelOkElapsed')
               .replace('{inject}', `${injectSec.toFixed(1)}s`)
@@ -554,7 +561,7 @@ const VerificationBadges = ({ faultInjectInfo = [], showEmpty = true }) => {
           );
           return parts.join(' ');
         })
-        .join('；')}
+        .join(translate('common.semicolon'))}
     </div>
   );
 
@@ -569,18 +576,20 @@ const VerificationBadges = ({ faultInjectInfo = [], showEmpty = true }) => {
         const meta = STATUS_META[v.status] || STATUS_META.UNKNOWN;
         const statusText = translate(meta.key);
         // UNKNOWN / ERROR 的原因直接上徽章（截断），不悬停也能看懂；其余显示结论
+        const errorText = lx(v.error);
+        const summaryText = lx(v.summary);
         let detail = '';
-        if ((v.status === 'UNKNOWN' || v.status === 'ERROR') && v.error) {
-          detail = v.error.length > 36 ? `${v.error.slice(0, 36)}…` : v.error;
-        } else if (v.summary) {
-          detail = v.summary;
+        if ((v.status === 'UNKNOWN' || v.status === 'ERROR') && errorText) {
+          detail = errorText.length > 36 ? `${errorText.slice(0, 36)}…` : errorText;
+        } else if (summaryText) {
+          detail = summaryText;
         }
         const text = detail ? `${statusText} · ${detail}` : statusText;
         // 悬浮：优先「原因」完整文本，其次「结论」
-        const reason = v.error
-          ? `${translate('verification.reason')}: ${v.error}`
-          : v.summary
-            ? `${translate('verification.summary')}: ${v.summary}`
+        const reason = errorText
+          ? `${translate('verification.reason')}: ${errorText}`
+          : summaryText
+            ? `${translate('verification.summary')}: ${summaryText}`
             : undefined;
         return badge(f, meta, text, reason);
       })}

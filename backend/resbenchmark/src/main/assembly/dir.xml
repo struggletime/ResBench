@@ -17,20 +17,20 @@
         <fileSet>
             <directory>${project.basedir}/scripts</directory>
         </fileSet>
+        <!-- 指标报告、编排校验及其依赖脚本；新增同目录 .py 不必再改 assembly。 -->
+        <fileSet>
+            <directory>${project.basedir}</directory>
+            <includes>
+                <include>*.py</include>
+            </includes>
+            <outputDirectory></outputDirectory>
+        </fileSet>
     </fileSets>
     <files>
         <file>
             <source>${project.build.directory}/${project.build.finalName}.jar</source>
             <outputDirectory></outputDirectory>
             <destName>${project.artifactId}.jar</destName>
-        </file>
-        <file>
-            <source>${project.basedir}/ResilienceMetricReport.py</source>
-            <outputDirectory></outputDirectory>
-        </file>
-        <file>
-            <source>${project.basedir}/evaluation_manage.py</source>
-            <outputDirectory></outputDirectory>
         </file>
     </files>
     <dependencySets>
